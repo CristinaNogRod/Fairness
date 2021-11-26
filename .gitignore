@@ -196,3 +196,4 @@ $RECYCLE.BIN/
 # datasets
 *.csv
 *.tar.gz
+*.txt
