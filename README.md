@@ -1,6 +1,6 @@
 # FAIR Score guided Outlier Detection (FSGOD)
 
-This repository contains the source code and results generated for this work
+This repository contains the source code and results generated for the paper: [TODO](www.google.com)
 
 
 ## Setup
@@ -28,8 +28,8 @@ python src/data/download_data all  # Downloads all datasets. Specify an ID for d
 python src/data/process_data all   # Builds all datasets. Specify an ID for crafting a particular one
 ```
 
-The first will download a raw copy of the datasets under `datasets/raw/[NAME].csv`, whereas the second will store a processed 
-copy under `datasets/proc/crafted_[NAME].csv`. All of the later training/evaluation scripts will use the processed datasets, 
+The first command will download a raw copy of the datasets under `datasets/raw/[NAME].csv`, whereas the second one will store a processed 
+copy under `datasets/proc/crafted_[NAME].csv`. All of the subsequent training/evaluation scripts will use the processed datasets, 
 so, if you wish to do so, you can remove the raw versions.
 
 ## Running an experiment
@@ -38,6 +38,6 @@ Experiments are organized by .py scripts. Each one of them will run a particular
 the `outputs/` folder. You can run them **from the project's root directory** with:
 
 ```
-python src/experiments/experiment_name.py
+python src/experiments/[experiment_name].py
 ```
 
