@@ -1,21 +1,36 @@
-# FAIR Score guided Outlier Detection (FSGOD)
+# FAIR Score guided Outlier Detection (FSGOD)
 
 This repository contains the source code and results generated for this work
 
 
-## Setup
+## Setup
 
 **Install dependencies**
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-## Datasets
+## Used Datasets
 
-* **Adult**
-* **UCI Credit**
+* **Adult**: https://archive.ics.uci.edu/ml/datasets/adult 
+* **UCI Credit**: https://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients 
+* **Insurance**: https://www.kaggle.com/mirichoi0218/insurance
 ...
 
+## Downloading and processing datasets
+
+The `download_data.py` and `process_data.py` modules handle the downloading and processing of the datasets. You can manually
+download and process them with the following commands (**run from the project's root directory**):
+
+```
+# from project's root folder
+python src/data/download_data all  # Downloads all datasets. Specify an ID for downloading a particular one
+python src/data/process_data all   # Builds all datasets. Specify an ID for crafting a particular one
+```
+
+The first will download a raw copy of the datasets under `datasets/raw/[NAME].csv`, whereas the second will store a processed 
+copy under `datasets/proc/crafted_[NAME].csv`. All of the later training/evaluation scripts will use the processed datasets, 
+so, if you wish to do so, you can remove the raw versions.
 
 ## Running an experiment
 
