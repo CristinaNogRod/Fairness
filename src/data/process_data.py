@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import PowerTransformer, MinMaxScaler
 
+import argparse
+
+
 def craft_credit():
     """
     This function loads credit dataset and:
@@ -13,7 +16,7 @@ def craft_credit():
     then saves crafted dataset in /datasets/proc folder.
     """
     # load dataset
-    credit_df = pd.read_csv('../datasets/raw/uci_credit.csv')
+    credit_df = pd.read_csv('datasets/raw/uci_credit.csv')
 
     # rename outlier column
     credit_df.rename(columns={"default payment next month": "OUTLIER"}, inplace=True)
@@ -37,7 +40,7 @@ def craft_credit():
     credit_df[cts_features] = MinMaxScaler(feature_range=(-1,1)).fit_transform(credit_df[cts_features])
 
     # save as csv
-    credit_df.to_csv('../datasets/proc/crafted_credit.csv', index=False)
+    credit_df.to_csv('datasets/proc/crafted_credit.csv', index=False)
 
 
 def craft_adult():
@@ -49,7 +52,7 @@ def craft_adult():
         - Creates OUTLIER flag column
     then saves crafted dataset in /datasets/proc folder.
     """
-    adult = pd.read_csv('../datasets/raw/adult.csv')
+    adult = pd.read_csv('datasets/raw/adult.csv')
 
     binary_features = ['sex']
     dis_features = ['workclass', 'education', 'marital-status',
@@ -77,7 +80,29 @@ def craft_adult():
     # female
 
     # save as csv
-    adult_proc.to_csv('../datasets/proc/crafted_adult.csv', index=False)
+    adult_proc.to_csv('datasets/proc/crafted_adult.csv', index=False)
+
+
+def craft_insurance():
+    insurance = pd.read_csv('datasets/raw/insurance.csv')
+
+    # Costs are high over the 85th percentile (i.e. about 15% are anomalies)
+    insurance['target'] = (insurance['charges'] > np.percentile(insurance.charges, 85)).astype(int)
+    insurance = insurance.drop('charges', axis=1)
+    insurance['sex'] = pd.get_dummies(insurance.sex)['male']
+    insurance['smoker'] = pd.get_dummies(insurance.smoker)['yes']
+    insurance['bmi'] = MinMaxScaler(feature_range=(-1,1)).fit_transform(insurance['bmi'].values.reshape(-1,1))
+    insurance['age'] = MinMaxScaler(feature_range=(-1,1)).fit_transform(insurance['age'].values.reshape(-1,1))
+    insurance['children'] = PowerTransformer().fit_transform(insurance['children'].values.reshape(-1,1))
+    insurance = pd.concat([insurance, pd.get_dummies(insurance.region)], axis=1)
+    insurance = insurance.drop("region", axis=1)
+
+    # Subsample women as they are the minority group
+    insurance_males = insurance[insurance.sex==1]
+    insurance_females = insurance[insurance.sex==0].sample(frac=.1)
+    insurance_subsampled = pd.concat([insurance_males, insurance_females]).sample(frac=1)
+
+    insurance_subsampled.to_csv('datasets/proc/crafted_insurance.csv', index=False)
 
 
 
@@ -121,3 +146,29 @@ def build_synth_dataset(mu_x, mu_o, sigma_x, sigma_o, num_points=5000, percent_o
     df = df.sample(frac=1)
 
     return df
+
+
+
+def main(dataset):
+    avail_datasets = {
+        'adult': craft_adult,
+        'insurance': craft_insurance,
+        'synth': build_synth_dataset,
+        'credit': craft_credit
+    }
+
+    if dataset == 'all':
+        for _, item in avail_datasets.items():
+            item()
+    else:
+        avail_datasets[dataset]()
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Build dataset.')
+    parser.add_argument('dataset', metavar='dataset', type=str, nargs=1,
+                        help='the dataset you want to build. "all" for building all of them',
+                        choices=['all', 'adult', 'credit', 'insurance'])
+    args = parser.parse_args()
+
+    main(args.dataset[0])
