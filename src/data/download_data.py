@@ -22,7 +22,7 @@ def download_adult():
                 "hours-per-week", "native-country", "label"]
     adult = pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data', header=0, names=adult_cols, index_col=False)
     adult.to_csv('datasets/raw/adult.csv', index=False)
-    print("Done downloading UCI Credit!\n\n")
+    print("Done downloading Adult dataset!\n\n")
 
 def download_insurance():
     print("Insurance dataset")
@@ -30,7 +30,7 @@ def download_insurance():
     print("Downloading Insurance dataset to datasets/raw/insurance.csv...")
     insurance = pd.read_csv("https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/insurance.csv")
     insurance.to_csv('datasets/raw/insurance.csv', index=False)
-
+    print("Done downloading Insurance dataset!\n\n")
 
 # TODO: Add rest of the dataset downloading here
 

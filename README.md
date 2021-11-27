@@ -24,8 +24,8 @@ download and process them with the following commands (**run from the project's 
 
 ```
 # from project's root folder
-python src/data/download_data all  # Downloads all datasets. Specify an ID for downloading a particular one
-python src/data/process_data all   # Builds all datasets. Specify an ID for crafting a particular one
+python src/data/download_data.py all  # Downloads all datasets. Specify an ID for downloading a particular one
+python src/data/process_data.py all   # Builds all datasets. Specify an ID for crafting a particular one
 ```
 
 The first command will download a raw copy of the datasets under `datasets/raw/[NAME].csv`, whereas the second one will store a processed 
