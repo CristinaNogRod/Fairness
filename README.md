@@ -16,6 +16,7 @@ python -m pip install -r requirements.txt
 * **UCI Credit**: https://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients 
 * **Insurance**: https://www.kaggle.com/mirichoi0218/insurance
 * **US. Census (KDD)**: https://archive.ics.uci.edu/ml/datasets/Census-Income+%28KDD%29
+* **Obesity**: https://archive.ics.uci.edu/ml/datasets/Estimation+of+obesity+levels+based+on+eating+habits+and+physical+condition+
 ...
 
 ## Downloading and processing datasets

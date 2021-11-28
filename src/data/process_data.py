@@ -156,6 +156,41 @@ def craft_kdd():
     subsampled_df = pd.concat([proc_df_males, proc_df_females], axis=0).sample(frac=1)
     subsampled_df.to_csv('datasets/proc/crafted_kdd.csv', index=False)
 
+def craft_obesity():
+    dataset = pd.read_csv('datasets/raw/obesity.csv')
+    dataset_mod = dataset.copy()
+
+    dataset_mod['Gender'] = dataset_mod.apply(lambda r: 1 if r['Gender'] == 'Female' else 0, axis=1)
+    dataset_mod['family_history_with_overweight'] = dataset_mod.apply(lambda r: 1 if r['family_history_with_overweight'] == 'yes' else 0, axis=1)
+    dataset_mod['SCC'] = dataset_mod.apply(lambda r: 1 if r['SCC'] == 'yes' else 0, axis=1)
+    dataset_mod['FAVC'] = dataset_mod.apply(lambda r: 1 if r['FAVC'] == 'yes' else 0, axis=1)
+    dataset_mod['SMOKE'] = dataset_mod.apply(lambda r: 1 if r['SMOKE'] == 'yes' else 0, axis=1)
+    dataset_mod['target'] = dataset_mod.apply(lambda r: 1 if r['NObeyesdad'] == 'Insufficient_Weight' else 0, axis=1)
+
+    dummycols = ['CAEC', 'CALC', 'MTRANS']
+    dummies = pd.get_dummies(dataset_mod.loc[:, dummycols])
+
+    dataset_mod = dataset_mod.drop(dummycols, axis=1)
+    dataset_mod = dataset_mod.drop('NObeyesdad', axis=1)
+
+    dataset_mod = pd.concat([dataset_mod, dummies], axis=1)
+    scaled_cont =  MinMaxScaler(feature_range=(-1,1)).fit_transform(dataset_mod.loc[:, ['Height', 'Weight', 'CH2O', 'NCP', 'FCVC']])
+
+    scaled_age = PowerTransformer().fit_transform(dataset_mod.loc[:, 'Age'].values.reshape(-1,1))
+    scaled_age = MinMaxScaler(feature_range=(-1,1)).fit_transform(scaled_age)
+
+    dataset_mod.loc[:, ['Height', 'Weight', 'CH2O', 'NCP', 'FCVC']] = scaled_cont
+    dataset_mod.loc[:, 'Age'] = scaled_age
+
+    # Subsample women (to about 8%)
+    dataset_males = dataset_mod[dataset_mod['Gender'] == 0]
+    dataset_females = dataset_mod[dataset_mod['Gender'] == 1].sample(frac=.1)
+    dataset_resampled = pd.concat([dataset_males, dataset_females], axis=0).sample(frac=1)
+
+    dataset_resampled.to_csv('datasets/proc/crafted_obesity.csv', index=False)
+
+
+
 
 def build_synth_dataset(mu_x, mu_o, sigma_x, sigma_o, num_points=5000, percent_outliers=.01, p=1/5):
     """
@@ -206,7 +241,8 @@ def main(dataset):
         'insurance': craft_insurance,
         'synth': build_synth_dataset,
         'credit': craft_credit,
-        'kdd': craft_kdd
+        'kdd': craft_kdd,
+        'obesity': craft_obesity
     }
 
     if dataset == 'all':
@@ -220,7 +256,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Build dataset.')
     parser.add_argument('dataset', metavar='dataset', type=str, nargs=1,
                         help='the dataset you want to build. "all" for building all of them',
-                        choices=['all', 'adult', 'credit', 'insurance', 'kdd'])
+                        choices=['all', 'adult', 'credit', 'insurance', 'kdd', 'obesity'])
     args = parser.parse_args()
 
     main(args.dataset[0])
