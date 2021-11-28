@@ -104,6 +104,57 @@ def craft_insurance():
 
     insurance_subsampled.to_csv('datasets/proc/crafted_insurance.csv', index=False)
 
+def craft_kdd():
+    columns = ['AAGE', 'ACLSWKR', 'ADTIND', 'ADTOCC', 'AHGA', 'AHRSPAY',
+                    'AHSCOL', 'AMARITL', 'AMJIND', 'AMJOCC', 'ARACE', 'AREORGN',
+                    'ASEX', 'AUNMEM', 'AUNTYPE', 'AWKSTAT', 'CAPGAIN', 'CAPLOSS',
+                    'DIVVAL', 'FILESTAT', 'GRINREG', 'GRINST', 'HHDFMX', 'HHDREL',
+                    'MARSUPWT', 'MIGMTR1', 'MIGMTR3', 'MIGMTR4', 'MIGSAME', 'MIGSUN',
+                    'NOEMP', 'PARENT', 'PEFNTVTY', 'PEMNTVTY', 'PENATVTY', 'PRCITSHP',
+                    'SEOTR', 'VETQVA', 'VETYN', 'WKSWORK', 'YEAR',
+                    'target']
+
+    kdd = pd.read_csv('datasets/raw/kdd.csv', names=columns).dropna()
+
+    # Remove NaN entries
+    kdd = kdd[(kdd.GRINST != ' ?') & (kdd.HHDFMX != ' Grandchild <18 ever marr not in subfamily')]
+    # Too high cardinality for common preproc techniques
+    forbidden_columns = ['ADTIND', 'ADTOCC', 'SEOTR', 'VETYN', 'YEAR', "GRINST", "GRINREG"]
+    # Countries. We will set National if "United States", else "foreigner"
+    forbidden_columns += ['PEFNTVTY', 'PEMNTVTY', 'PENATVTY']
+
+    continuous_columns = ['AAGE', 'AHRSPAY', 'DIVVAL', 'NOEMP', 'CAPGAIN', 'CAPLOSS', 'WKSWORK', 'MARSUPWT']
+    binary_columns = ['ASEX', 'target']
+    dummy_cols = [c for c in kdd.columns if c not in continuous_columns and c not in binary_columns and c != 'target']
+    dummy_cols = [d for d in dummy_cols if d not in forbidden_columns]
+    
+    #Binarization
+    kdd.target = kdd.apply(lambda r: 1 if r['target'] == ' 50000+.' else 0, axis=1) # .value_counts()
+    kdd.ASEX = kdd.apply(lambda r: 1 if r['ASEX'] == ' Male' else 0, axis=1) # .value_counts()
+
+    # convert multi-category to binary in order to reduce output dimensionality
+    kdd["NATIONAL_FATHER"] = kdd.apply(lambda r: 1 if r['PEFNTVTY'] == ' United-States' else 0, axis=1) # .value_counts()
+    kdd["NATIONAL_MOTHER"] = kdd.apply(lambda r: 1 if r['PEMNTVTY'] == ' United-States' else 0, axis=1) # .value_counts()
+    kdd["NATIONAL_SELF"] = kdd.apply(lambda r: 1 if r['PENATVTY'] == ' United-States' else 0, axis=1) # .value_counts()
+    # These new cols are now binary
+    binary_columns += ["NATIONAL_FATHER", "NATIONAL_MOTHER", "NATIONAL_SELF"]
+
+    dummy = pd.get_dummies(kdd[dummy_cols])
+    cont = PowerTransformer().fit_transform(kdd[continuous_columns])
+    cont = MinMaxScaler(feature_range=(-1,1)).fit_transform(cont)
+
+    df_copy = kdd.copy().loc[:, continuous_columns]
+    df_copy.loc[:, continuous_columns] = cont
+    df_copy.loc[:, binary_columns] = kdd.loc[:, binary_columns]
+
+
+    proc_df = pd.concat([df_copy, dummy], axis=1)
+    
+    proc_df_males = proc_df.loc[proc_df['ASEX']==0, :]
+    proc_df_females = proc_df.loc[proc_df['ASEX']==1, :].sample(frac=.1)
+
+    subsampled_df = pd.concat([proc_df_males, proc_df_females], axis=0).sample(frac=1)
+    subsampled_df.to_csv('datasets/proc/crafted_kdd.csv', index=False)
 
 
 def build_synth_dataset(mu_x, mu_o, sigma_x, sigma_o, num_points=5000, percent_outliers=.01, p=1/5):
@@ -154,7 +205,8 @@ def main(dataset):
         'adult': craft_adult,
         'insurance': craft_insurance,
         'synth': build_synth_dataset,
-        'credit': craft_credit
+        'credit': craft_credit,
+        'kdd': craft_kdd
     }
 
     if dataset == 'all':
@@ -168,7 +220,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Build dataset.')
     parser.add_argument('dataset', metavar='dataset', type=str, nargs=1,
                         help='the dataset you want to build. "all" for building all of them',
-                        choices=['all', 'adult', 'credit', 'insurance'])
+                        choices=['all', 'adult', 'credit', 'insurance', 'kdd'])
     args = parser.parse_args()
 
     main(args.dataset[0])

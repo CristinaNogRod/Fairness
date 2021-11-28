@@ -1,5 +1,10 @@
 import pandas as pd
 import argparse
+import requests
+import tempfile
+import requests
+import gzip
+import shutil
 
 # Download the UCI Credit Dataset
 def download_credit():
@@ -32,6 +37,28 @@ def download_insurance():
     insurance.to_csv('datasets/raw/insurance.csv', index=False)
     print("Done downloading Insurance dataset!\n\n")
 
+def download_census():
+    print("KDD U.S Census dataset")
+    print("\t More info: https://archive.ics.uci.edu/ml/datasets/Census-Income+%28KDD%29")
+    print("Downloading KDD U.S Census dataset to datasets/raw/kdd.csv...")
+    
+    url = "https://archive.ics.uci.edu/ml/machine-learning-databases/census-income-mld/census-income.data.gz"
+    path_out = "datasets/raw/kdd.csv"
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        target_path = tmpdirname + "/census.tar.gz"
+
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(target_path, 'wb') as f:
+                f.write(response.raw.read())
+        
+        with gzip.open(target_path, 'rb') as f_in:
+            with open(path_out, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+    print("Done downloading Insurance dataset!\n\n")
+
 # TODO: Add rest of the dataset downloading here
 
 
@@ -39,7 +66,8 @@ def main(dataset):
     avail_datasets = {
         'adult': download_adult,
         'insurance': download_insurance,
-        'credit': download_credit
+        'credit': download_credit,
+        'kdd': download_census
     }
 
     if dataset == 'all':
@@ -53,7 +81,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='download dataset.')
     parser.add_argument('dataset', metavar='dataset', type=str, nargs=1,
                         help='the dataset you want to download. "all" for downloading all of them',
-                        choices=['all', 'adult', 'credit', 'insurance'])
+                        choices=['all', 'adult', 'credit', 'insurance', 'kdd'])
     args = parser.parse_args()
 
     main(args.dataset[0])

@@ -39,6 +39,7 @@ class SGOutlierDetector():
                  lambda_se=0.9,
                  base_loss=None,
                  optimizer=None, 
+                 embedding_dim=30,
                  ae=None, encoder=None, scorer=None
     ):
         """Constructor"""
@@ -55,6 +56,8 @@ class SGOutlierDetector():
         self.lambda_se = lambda_se
         self.mu0 = 1e-5
 
+        self.embedding_dim = embedding_dim
+
     def _build_models(self, n_inputs):
         """
         This function builds an autoencoder model and a scoring network when these are not provided.
@@ -65,12 +68,10 @@ class SGOutlierDetector():
         Returns:
             tf.keras.Model
         """
-        embedding_dim = 30
-
        # autoencoder
         inputs = tf.keras.Input(shape=(n_inputs,))
         encoder = tf.keras.layers.Dense(n_inputs, activation='relu', name='enc_l1')(inputs)
-        embedding = tf.keras.layers.Dense(embedding_dim, activation='tanh', name='enc_embedding')(encoder)
+        embedding = tf.keras.layers.Dense(self.embedding_dim, activation='tanh', name='enc_embedding')(encoder)
         decoder = tf.keras.layers.Dense(80, activation='relu', name='dec_l1')(embedding)
         decoder = tf.keras.layers.Dense(n_inputs, activation='tanh', name='dec_out')(decoder)
 
@@ -78,8 +79,8 @@ class SGOutlierDetector():
         encoder_model = tf.keras.Model(inputs=inputs, outputs=embedding)
         
         # scorer network
-        inp_scorer = tf.keras.Input(shape=(embedding_dim,))
-        scorer_layer = tf.keras.layers.Dense(embedding_dim, activation='relu', name='scorer_l1')(inp_scorer)
+        inp_scorer = tf.keras.Input(shape=(self.embedding_dim,))
+        scorer_layer = tf.keras.layers.Dense(self.embedding_dim, activation='relu', name='scorer_l1')(inp_scorer)
         scorer_layer = tf.keras.layers.Dense(30, activation='linear', name='scorer_l2')(scorer_layer)
         scorer_layer = tf.keras.layers.Dense(1, activation='linear', name='scorer_l3')(scorer_layer)
 
