@@ -28,31 +28,6 @@ SEED = 33
 tf.random.set_seed(SEED)
 np.random.seed(SEED)
 
-def model_optimization(X, y):
-    opt = BayesSearchCV(
-        SGOutlierDetector(epsilon=1e-6),
-        {
-            #'epsilon': Real(1e-6, 0.9, prior='log-uniform'), # 0.01, 
-            'lambda_se': Real(.01, 10, prior='log-uniform'),
-            'a': Real(5, 20, prior='log-uniform'),
-            'lambda_a': Real(1.0, 100.0, prior='log-uniform'),
-            'alpha': Real(.01, .6, prior='log-uniform'),
-            'gamma': Real(.001, 1, prior='log-uniform')
-        },
-        #scoring=scoring_fn,
-        n_iter=32,
-        random_state=0,
-        fit_params= dict(
-              batch_size=512, epochs=3, val_X=None, val_pv=None
-        ),
-        verbose=1,
-        cv=2
-    )
-
-    opt.fit(X, y)
-
-    return dict(opt.best_params_)
-
 
 def run_experiment(
     dataset_path='datasets/proc/crafted_adult.csv',
