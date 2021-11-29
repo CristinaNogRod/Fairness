@@ -1,0 +1,8 @@
+scikit-learn
+scikit-optimize
+pandas
+tensorflow>=2.4
+numpy
+seaborn
+tabulate
+xlrd
