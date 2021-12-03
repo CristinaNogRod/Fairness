@@ -1,7 +1,7 @@
 import pandas as pd
 import tensorflow as tf
 import numpy as np
-from .losses import FairODLoss
+from .losses import FairODLoss,  _StatisticalParity_Loss, _GroupFidelity_Loss
 
 from sklearn.metrics import roc_auc_score
 
@@ -39,11 +39,16 @@ class SGOutlierDetector():
                  lambda_se=0.9,
                  base_loss=None,
                  optimizer=None, 
-                 embedding_dim=30,
+                 embedding_dim=20,
                  ae=None, encoder=None, scorer=None
     ):
         """Constructor"""
         self.loss_fn = FairODLoss(base=base_loss, alpha=alpha, gamma=gamma)
+        self.spl = _StatisticalParity_Loss()
+        self.gfl = _GroupFidelity_Loss()
+        self.alpha = alpha
+        self.gamma = gamma
+
 
         self.optimizer = tf.keras.optimizers.Adam() if not optimizer else optimizer
         self.ae = ae
@@ -71,9 +76,9 @@ class SGOutlierDetector():
        # autoencoder
         inputs = tf.keras.Input(shape=(n_inputs,))
         encoder = tf.keras.layers.Dense(n_inputs, activation='relu', name='enc_l1')(inputs)
-        embedding = tf.keras.layers.Dense(self.embedding_dim, activation='tanh', name='enc_embedding')(encoder)
-        decoder = tf.keras.layers.Dense(80, activation='relu', name='dec_l1')(embedding)
-        decoder = tf.keras.layers.Dense(n_inputs, activation='tanh', name='dec_out')(decoder)
+        embedding = tf.keras.layers.Dense(self.embedding_dim, activation='linear', name='enc_embedding')(encoder)
+        decoder = tf.keras.layers.Dense(40, activation='relu', name='dec_l1')(embedding)
+        decoder = tf.keras.layers.Dense(n_inputs, activation='linear', name='dec_out')(decoder)
 
         model = tf.keras.Model(inputs=inputs, outputs=decoder)
         encoder_model = tf.keras.Model(inputs=inputs, outputs=embedding)
@@ -82,7 +87,7 @@ class SGOutlierDetector():
         inp_scorer = tf.keras.Input(shape=(self.embedding_dim,))
         scorer_layer = tf.keras.layers.Dense(self.embedding_dim, activation='relu', name='scorer_l1')(inp_scorer)
         scorer_layer = tf.keras.layers.Dense(30, activation='linear', name='scorer_l2')(scorer_layer)
-        scorer_layer = tf.keras.layers.Dense(1, activation='linear', name='scorer_l3')(scorer_layer)
+        scorer_layer = tf.keras.layers.Dense(1, activation='relu', name='scorer_l3')(scorer_layer)
 
         scorer_model = tf.keras.Model(inputs=inp_scorer, outputs=scorer_layer)
         
@@ -131,6 +136,7 @@ class SGOutlierDetector():
             val_loss_results = np.zeros(shape=(epochs,), dtype=np.float32)
 
         # Training
+        self.optimizer = tf.keras.optimizers.Adam()
         counter = 0
         for epoch in range(epochs):
             # Reset loss avg at each epoch
@@ -181,26 +187,42 @@ class SGOutlierDetector():
         """
         with tf.GradientTape() as tape:
             X_pred = self.ae(X, training=True)
-            embeddings = self.encoder(X, training=True)
+            embeddings = self.encoder(X, training=False)
             scores = self.scorer(embeddings, training=True)
 
             recon_errors = tf.keras.losses.mse(X, X_pred)
 
-            loss_value = self.loss_fn(X, X_pred, pv)
-            loss_scoring = self.__scorer_loss(recon_errors, scores)
+            # nasty
+            iepsilon = np.percentile(recon_errors.numpy(), 90)
+            self.epsilon = iepsilon
 
-            loss_value = tf.cast(loss_value, tf.float32)
+            l2_error = tf.cast(
+                 tf.norm(X - tf.cast( X_pred, tf.float64), axis=1), 
+                 tf.float32
+            )
+
+            loss_scoring = self.__scorer_loss(recon_errors, scores, l2_error)
+
             loss_scoring = tf.cast(loss_scoring, tf.float32)
 
-            loss_total = loss_value + self.lambda_se * tf.reduce_mean(loss_scoring)
+            # FairOD Terms
+            sx = scores
+            spl_term = self.spl(sx, pv)
+            gfl_term = self.gfl(sx, pv)
+
+            loss_total =  tf.reduce_mean(recon_errors) + self.lambda_se * tf.reduce_mean(loss_scoring)
+
+            # Fair Extension:
+            loss_total = self.alpha * loss_total + (1 - self.alpha) * spl_term + self.gamma * gfl_term
+
 
         grads = tape.gradient(loss_total, sources = self.ae.trainable_weights + self.scorer.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.ae.trainable_weights + self.scorer.trainable_weights))
 
         # Update and return avg loss
         #train_loss_avg(loss_value)
-        train_loss_avg(tf.reduce_mean(loss_value))
-        return tf.reduce_mean(loss_value)#train_loss_avg.result()
+        train_loss_avg(loss_total)
+        return tf.reduce_mean(loss_total)#train_loss_avg.result()
 
     def __validation_step(self, X, pv, val_loss_avg):
         """
@@ -226,7 +248,7 @@ class SGOutlierDetector():
         val_loss_avg(loss_scoring)
         return val_loss_avg.result()
 
-    def __scorer_loss(self, reconstruction_loss, score):
+    def __scorer_loss(self, reconstruction_loss, score, l2_norm=None):
         """
         This function computes the score_guide regularization term.
         The aim is to force the distribution of the normal data points towards a mean of 0 and for anomalous data points towards mean of a.
@@ -240,12 +262,16 @@ class SGOutlierDetector():
         Returns:
             
         """
-        mask = tf.cast(reconstruction_loss < self.epsilon, dtype=tf.float64)
+        if l2_norm is None:
+            mask = tf.cast(reconstruction_loss < self.epsilon, dtype=tf.float64)
+        else:
+            mask = tf.cast(l2_norm < self.epsilon, dtype=tf.float64)
+
         losses = tf.zeros_like(reconstruction_loss,  dtype=tf.float64)
         score = tf.squeeze(tf.cast(score, dtype=tf.float64))
 
-        losses += tf.squeeze(tf.cast(tf.abs(score - self.mu0), dtype=tf.float64)) * mask
-        losses += tf.squeeze(tf.math.maximum(0.0, self.a - score)) * (1 - mask) * self.lambda_a
+        losses += tf.squeeze(tf.cast(tf.abs(score - self.mu0), dtype=tf.float64)) * (mask)
+        losses += tf.squeeze(tf.math.maximum(0.0, self.a - score)) * (1-mask) * self.lambda_a
 
         return losses
 
@@ -261,8 +287,8 @@ class SGOutlierDetector():
         """
         embed = self.encoder.predict(X)
         return self.scorer(embed)
-        #X_pred = self._predict(X)
-        #return tf.reduce_mean((X - X_pred) ** 2, axis=1)
+        # X_pred = self._predict(X)
+        # return tf.reduce_mean((X - X_pred) ** 2, axis=1)
 
     def predict_outliers(self, X, threshold=10):
         """
@@ -285,19 +311,21 @@ class SGOutlierDetector():
             'lambda_se':self.lambda_se,
             'a':self.a,
             'lambda_a':self.lambda_a,
-            'alpha':self.loss_fn.alpha,
-            'gamma':self.loss_fn.gamma
+            'alpha':self.alpha,
+            'gamma':self.gamma
         }
 
     def set_params(self, **params):
         self.epsilon=params['epsilon'] if 'epsilon' in params else self.epsilon
         self.lambda_se=params['lambda_se']
         self.a=params['a']
-        self.lambda_a=params['lambda_a']
-        self.loss_fn = FairODLoss(base=None, 
-                                  alpha=params['alpha'] if 'alpha' in params else self.loss_fn.alpha, 
-                                  gamma=params['gamma'] if 'gamma' in params else self.loss_fn.gamma
-        )
+        self.lambda_a=params['lambda_a'],
+        self.alpha=params['alpha'],
+        self.alpha=params['gamma']
+        #self.loss_fn = FairODLoss(base=None, 
+        #                          alpha=params['alpha'] if 'alpha' in params else self.loss_fn.alpha, 
+        #                          gamma=params['gamma'] if 'gamma' in params else self.loss_fn.gamma
+        #)
         return self
 
     def score(self, X, y):
