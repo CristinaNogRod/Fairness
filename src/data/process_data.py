@@ -1,7 +1,7 @@
 # This module holds functions for crafting the benchmarking datasets
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import PowerTransformer, MinMaxScaler
+from sklearn.preprocessing import PowerTransformer, MinMaxScaler, StandardScaler
 
 import argparse
 
@@ -39,6 +39,9 @@ def craft_credit():
     credit_df[cts_features] = PowerTransformer().fit_transform(credit_df[cts_features])
     credit_df[cts_features] = MinMaxScaler(feature_range=(-1,1)).fit_transform(credit_df[cts_features])
 
+    #credit_df[cts_features] = PowerTransformer().fit_transform(credit_df[cts_features])
+    # credit_df[cts_features] = StandardScaler().fit_transform(credit_df[cts_features])
+
     # save as csv
     credit_df.to_csv('datasets/proc/crafted_credit.csv', index=False)
 
@@ -60,9 +63,18 @@ def craft_adult():
     cont_features = [
         c for c in adult.columns if c not in dis_features and c != "label" and c not in binary_features]
 
+    # TODO: Only two cats for this
+    mask = adult['native-country'] == ' United-States'
+    adult.loc[mask, 'native-country'] = 'national'
+    adult.loc[~mask, 'native-country'] = 'non-national'
+
     oh_encoded = pd.get_dummies(adult[dis_features])
-    normalized_cont = PowerTransformer().fit_transform(adult[cont_features])
-    normalized_cont = MinMaxScaler(feature_range=(-1,1)).fit_transform(normalized_cont)
+    #normalized_cont = PowerTransformer().fit_transform(adult[cont_features])
+    #normalized_cont = MinMaxScaler(feature_range=(-1,1)).fit_transform(normalized_cont)
+    #normalized_cont = StandardScaler().fit_transform(normalized_cont)
+    
+    normalized_cont = StandardScaler().fit_transform(adult[cont_features])
+    
     normalized_cont = pd.DataFrame(normalized_cont, columns=cont_features)
 
     oh_encoded['sex'] = 0
@@ -72,9 +84,9 @@ def craft_adult():
     adult_proc['OUTLIER'] = adult.apply(lambda r: 1 if r['label'] == ' >50K' else 0, axis=1)
 
     # Subsample females to be in ratio 1:4 to males
-    adult_males = adult_proc[adult_proc['sex'] == 0]
-    adult_females = adult_proc[adult_proc['sex'] == 1].sample(len(adult_males) // 4)
-    adult_proc = pd.concat([adult_males, adult_females], axis=0).sample(frac=1)
+    #adult_males = adult_proc[adult_proc['sex'] == 0]
+    #adult_females = adult_proc[adult_proc['sex'] == 1].sample(len(adult_males) // 4)
+    #adult_proc = pd.concat([adult_males, adult_females], axis=0).sample(frac=1)
 
     # TODO: Further subsample women so outlier percentage is 5% for both male an
     # female
