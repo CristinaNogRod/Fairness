@@ -75,8 +75,9 @@ class SGOutlierDetector():
         """
        # autoencoder
         inputs = tf.keras.Input(shape=(n_inputs,))
-        encoder = tf.keras.layers.Dense(n_inputs, activation='relu', name='enc_l1')(inputs)
-        embedding = tf.keras.layers.Dense(self.embedding_dim, activation='linear', name='enc_embedding')(encoder)
+        encoder = tf.keras.layers.Dense(40, activation='relu', name='enc_l1')(inputs)
+        #encoder = tf.keras.layers.Dense(40, activation='relu', name='enc_l2')(encoder)
+        embedding = tf.keras.layers.Dense(20, activation='relu', name='enc_embedding')(encoder)
         decoder = tf.keras.layers.Dense(40, activation='relu', name='dec_l1')(embedding)
         decoder = tf.keras.layers.Dense(n_inputs, activation='linear', name='dec_out')(decoder)
 
@@ -85,9 +86,9 @@ class SGOutlierDetector():
         
         # scorer network
         inp_scorer = tf.keras.Input(shape=(self.embedding_dim,))
-        scorer_layer = tf.keras.layers.Dense(self.embedding_dim, activation='relu', name='scorer_l1')(inp_scorer)
-        scorer_layer = tf.keras.layers.Dense(30, activation='linear', name='scorer_l2')(scorer_layer)
-        scorer_layer = tf.keras.layers.Dense(1, activation='relu', name='scorer_l3')(scorer_layer)
+        #scorer_layer = tf.keras.layers.Dense(self.embedding_dim, activation='relu', name='scorer_l1')(inp_scorer)
+        scorer_layer = tf.keras.layers.Dense(20, activation='linear', name='scorer_l2')(inp_scorer)
+        scorer_layer = tf.keras.layers.Dense(1, activation='linear', name='scorer_l3')(scorer_layer)
 
         scorer_model = tf.keras.Model(inputs=inp_scorer, outputs=scorer_layer)
         
@@ -119,6 +120,8 @@ class SGOutlierDetector():
             y = pv[0]
             pv = pv[1]
 
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, clipvalue=1.0)
+
         # Prepare training datasets
         train_dataset = tf.data.Dataset.from_tensor_slices((X, pv))
         train_dataset = train_dataset.batch(batch_size)
@@ -141,6 +144,9 @@ class SGOutlierDetector():
         for epoch in range(epochs):
             # Reset loss avg at each epoch
             train_loss_avg = tf.keras.metrics.Mean()
+
+            # TODO: Reset after each epoch
+            self.epsilon = None
 
             # Iterate over batches
             for step, (X_batch, pv_batch) in enumerate(train_dataset):
@@ -187,21 +193,23 @@ class SGOutlierDetector():
         """
         with tf.GradientTape() as tape:
             X_pred = self.ae(X, training=True)
-            embeddings = self.encoder(X, training=False)
+            embeddings = self.encoder(X, training=True)
             scores = self.scorer(embeddings, training=True)
 
             recon_errors = tf.keras.losses.mse(X, X_pred)
-
-            # nasty
-            iepsilon = np.percentile(recon_errors.numpy(), 90)
-            self.epsilon = iepsilon
 
             l2_error = tf.cast(
                  tf.norm(X - tf.cast( X_pred, tf.float64), axis=1), 
                  tf.float32
             )
 
-            loss_scoring = self.__scorer_loss(recon_errors, scores, l2_error)
+            # nasty
+            if self.epsilon is None:
+                iepsilon = np.percentile(l2_error.numpy(), 90)
+                self.epsilon = iepsilon
+            
+
+            loss_scoring = self.__scorer_loss(l2_error, scores)
 
             loss_scoring = tf.cast(loss_scoring, tf.float32)
 
@@ -217,6 +225,7 @@ class SGOutlierDetector():
 
 
         grads = tape.gradient(loss_total, sources = self.ae.trainable_weights + self.scorer.trainable_weights)
+        grads = [(tf.clip_by_value(grad, -1.0, 1.0)) for grad in grads]
         self.optimizer.apply_gradients(zip(grads, self.ae.trainable_weights + self.scorer.trainable_weights))
 
         # Update and return avg loss
@@ -248,7 +257,7 @@ class SGOutlierDetector():
         val_loss_avg(loss_scoring)
         return val_loss_avg.result()
 
-    def __scorer_loss(self, reconstruction_loss, score, l2_norm=None):
+    def __scorer_loss(self, reconstruction_loss, score):
         """
         This function computes the score_guide regularization term.
         The aim is to force the distribution of the normal data points towards a mean of 0 and for anomalous data points towards mean of a.
@@ -262,16 +271,20 @@ class SGOutlierDetector():
         Returns:
             
         """
-        if l2_norm is None:
-            mask = tf.cast(reconstruction_loss < self.epsilon, dtype=tf.float64)
-        else:
-            mask = tf.cast(l2_norm < self.epsilon, dtype=tf.float64)
+        mask = tf.cast(reconstruction_loss < self.epsilon, dtype=tf.float64)
 
         losses = tf.zeros_like(reconstruction_loss,  dtype=tf.float64)
         score = tf.squeeze(tf.cast(score, dtype=tf.float64))
 
-        losses += tf.squeeze(tf.cast(tf.abs(score - self.mu0), dtype=tf.float64)) * (mask)
-        losses += tf.squeeze(tf.math.maximum(0.0, self.a - score)) * (1-mask) * self.lambda_a
+        inlier_loss = tf.cast(
+            tf.abs(score - self.mu0), 
+            dtype=tf.float64
+        )
+
+        outlier_loss = tf.math.maximum(0.0, self.a - score)
+
+        losses += inlier_loss * (mask)
+        losses += outlier_loss * (1-mask) * self.lambda_a
 
         return losses
 
@@ -287,10 +300,11 @@ class SGOutlierDetector():
         """
         embed = self.encoder.predict(X)
         return self.scorer(embed)
+
         # X_pred = self._predict(X)
         # return tf.reduce_mean((X - X_pred) ** 2, axis=1)
 
-    def predict_outliers(self, X, threshold=10):
+    def predict_outliers(self, X, threshold=None):
         """
         This function classifies the samples into the outlier or inlier group. This is done using their
         resconstruction error and the outlier threshold set when instanciating the class.
@@ -302,7 +316,7 @@ class SGOutlierDetector():
             tf.Tensor: binary tensor where the samples with 1 are the classified outliers
         """
         outlier_scores = self.predict_scores(X)
-        outliers = outlier_scores >= threshold
+        outliers = outlier_scores >= self.epsilon
         return tf.cast(outliers, tf.int64)
 
     def get_params(self, *args, **kwargs):
