@@ -41,7 +41,6 @@ fi
 
 for (( c=1; c<=$runs; c++ ))
 do  
-    #python "src/experiments/${experiment}.py"
-    #mv "outputs/report_${experiment}.json" "outputs/report_${experiment}_${c}.json"
-    echo $c
+    python "src/experiments/${experiment}.py"
+    mv "outputs/report_${experiment}.json" "outputs/report_${experiment}_${c}.json"
 done
