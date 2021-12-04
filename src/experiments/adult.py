@@ -24,9 +24,9 @@ from sklearn.metrics import roc_auc_score
 from skopt import BayesSearchCV
 from skopt.space import Real, Categorical, Integer
 
-SEED = 33
-tf.random.set_seed(SEED)
-np.random.seed(SEED)
+# SEED = 33
+# tf.random.set_seed(SEED)
+# np.random.seed(SEED)
 
 
 def run_experiment(
@@ -50,8 +50,8 @@ def run_experiment(
 
     # Training FairOD Model
     print("Training base FairOD...")
-    model = OutlierDetector(alpha=0.01, gamma=0.25)
-    _, _ = model.fit(X_train, pv_train, batch_size=512, epochs=3, val_X=None, val_pv=None)
+    model = OutlierDetector(alpha=0.4, gamma=0.25)
+    _, _ = model.fit(X_train, pv_train, batch_size=512, epochs=6, val_X=None, val_pv=None)
 
     print("Evaluating FairOD...")
     X_pred = model.predict_scores(X_test)
@@ -68,14 +68,15 @@ def run_experiment(
     report_metrics['metrics_fairod'] = fair_od_metrics
 
     print("Training base fSG-OD...")
-    model = SGOutlierDetector(epsilon=0.001, 
-                          lambda_se=4.86, 
-                          lambda_a=25.0,
-                          a=20, 
-                          alpha=0.01, 
+    model = SGOutlierDetector(
+                          epsilon=0.001, 
+                          lambda_se=0.01, 
+                          lambda_a=20,
+                          a=6, 
+                          alpha=0.4, 
                           gamma=0.25)
 
-    _, _ = model.fit(X_train, pv_train, batch_size=512, epochs=3, val_X=None, val_pv=None)
+    _, _ = model.fit(X_train, pv_train, batch_size=4096, epochs=6, val_X=None, val_pv=None)
 
     print("Evaluating fSG-OD...")
     X_pred = model.predict_scores(X_test).numpy()
