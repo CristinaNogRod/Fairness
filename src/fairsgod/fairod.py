@@ -56,7 +56,7 @@ class OutlierDetector():
         inputs = tf.keras.Input(shape=(n_inputs,))
         encoder = tf.keras.layers.Dense(n_inputs)(inputs)
         embedding = tf.keras.layers.Dense(n_hidden)(encoder)
-        decoder = tf.keras.layers.Dense(n_inputs, activation='tanh')(embedding)
+        decoder = tf.keras.layers.Dense(n_inputs, activation='linear')(embedding)
 
         model = tf.keras.Model(inputs=inputs, outputs=decoder)
 
