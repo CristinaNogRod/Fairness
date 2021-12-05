@@ -83,8 +83,6 @@ def download_obesity():
 
     print("Done downloading Insurance dataset!\n\n")
 
-# TODO: Add rest of the dataset downloading here
-
 
 def main(dataset):
     avail_datasets = {

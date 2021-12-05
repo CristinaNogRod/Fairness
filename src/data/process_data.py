@@ -18,32 +18,55 @@ def craft_credit():
     # load dataset
     credit_df = pd.read_csv('datasets/raw/uci_credit.csv')
 
-    # rename outlier column
-    credit_df.rename(columns={"default payment next month": "OUTLIER"}, inplace=True)
-    # drop ID column
-    credit_df.drop(columns=['ID'], inplace=True)
-    # PV flag: majority - age>25, minority - age<=25
-    PV = credit_df.AGE.lt(25).astype(int)
-    credit_df['PV'] = PV
+    credit_df = credit_df.rename(columns={"default payment next month": "OUTLIER"})
+    credit_df.drop('ID', axis=1, inplace=True)
 
-    # Preprocess data
-    dis_features = ['SEX','MARRIAGE', 'EDUCATION', 'PAY_0','PAY_2','PAY_3','PAY_4','PAY_5','PAY_6', 'OUTLIER', 'PV']
-    one_hot_features = [var for var in dis_features if not(var in ['OUTLIER', 'PV'])]
+    # Some cols have negative values. This could mean something (maybe returned money), but, 
+    # as it's not specified, they will be clipped to 0 (as those high negative values will hurt the NNs)
+    bill_colnames = ['BILL_AMT{}'.format(i) for i in range(1, 7)]
+    credit_df.loc[:, bill_colnames] = np.maximum(0, credit_df[bill_colnames]) 
+
+    # TODO: Remove high cardinality columns
+    high_car_cols = ['PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6']
+    credit_df.drop(high_car_cols, axis=1, inplace=True)
+    dis_features = ['SEX', 'OUTLIER', 'MARRIAGE', 'EDUCATION']
+
+    # TODO: Remove 0 entries so the norm. distribution is not bimodal
+    for c in [f'PAY_AMT{i}' for i in range(1, 7)]:
+        credit_df.loc[credit_df[c] <= 0, c] = credit_df[c].median()
+    for c in [f'BILL_AMT{i}' for i in range(1, 7)]:
+        credit_df.loc[credit_df[c] <= 0, c] = credit_df[c].median()
+
+    #dis_features = ['SEX', 'OUTLIER', 'MARRIAGE', 'EDUCATION', 'PAY_0','PAY_2','PAY_3','PAY_4','PAY_5','PAY_6']
+
+    one_hot_features = [var for var in dis_features if not(var in ['OUTLIER', 'SEX'])]
     cts_features = [var for var in credit_df.columns if not(var in dis_features)]
 
-    # OneHotEncoding
+
     dummy = pd.get_dummies(credit_df[one_hot_features].astype(str))
-    credit_df = pd.concat((credit_df,dummy), axis=1).drop(columns=one_hot_features+['SEX_2']) # concatenate & drop
+    cts = credit_df.loc[:, cts_features]
 
-    # Normalise
-    credit_df[cts_features] = PowerTransformer().fit_transform(credit_df[cts_features])
-    credit_df[cts_features] = MinMaxScaler(feature_range=(-1,1)).fit_transform(credit_df[cts_features])
+    credit_df_proc = pd.concat((cts,dummy), axis=1)
+    credit_df_proc['OUTLIER'] = credit_df['OUTLIER']
+    credit_df_proc['SEX'] = credit_df['SEX'] - 1
 
-    #credit_df[cts_features] = PowerTransformer().fit_transform(credit_df[cts_features])
-    # credit_df[cts_features] = StandardScaler().fit_transform(credit_df[cts_features])
+
+    credit_df_proc_men = credit_df_proc[credit_df_proc['SEX'] == 0]
+    credit_df_proc_women = credit_df_proc[credit_df_proc['SEX'] == 1]
+
+    credit_df_proc_subsampled = pd.concat([
+        credit_df_proc_men,
+        credit_df_proc_women.sample(int(len(credit_df_proc_men) * 0.25))
+    ], axis=0).sample(frac=1)
+
+    # Standarize cont feats
+    normalized_cont = credit_df_proc_subsampled[cts_features]
+    normalized_cont = PowerTransformer().fit_transform(normalized_cont)
+    normalized_cont = StandardScaler().fit_transform(normalized_cont)
+    credit_df_proc_subsampled.loc[:, cts_features] = normalized_cont
 
     # save as csv
-    credit_df.to_csv('datasets/proc/crafted_credit.csv', index=False)
+    credit_df_proc_subsampled.to_csv('datasets/proc/crafted_credit.csv', index=False)
 
 
 def craft_adult():
@@ -251,7 +274,6 @@ def main(dataset):
     avail_datasets = {
         'adult': craft_adult,
         'insurance': craft_insurance,
-        'synth': build_synth_dataset,
         'credit': craft_credit,
         'kdd': craft_kdd,
         'obesity': craft_obesity
