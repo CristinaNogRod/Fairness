@@ -38,19 +38,19 @@ def run_experiment(
 
     # Load adult dataset
     credit_df = pd.read_csv(dataset_path)
-    y_pv = credit_df[['OUTLIER','PV']]
-    X = credit_df.drop(columns=['OUTLIER', 'AGE', 'PV'])
+    y_pv = credit_df[['OUTLIER','SEX']]
+    X = credit_df.drop(columns=['OUTLIER', 'SEX'])
 
     X_train, X_test, y_pv_train, y_pv_test = train_test_split(X, y_pv, test_size=0.3, shuffle=True)
 
-    pv_test = y_pv_test['PV']
-    pv_train = y_pv_train['PV']
+    pv_test = y_pv_test['SEX']
+    pv_train = y_pv_train['SEX']
     y_test = y_pv_test['OUTLIER']
 
 
     # Training FairOD Model
     print("Training base FairOD...")
-    model = OutlierDetector(alpha=0.01, gamma=0.25)
+    model = OutlierDetector(alpha=0.3, gamma=0.25)
     _, _ = model.fit(X_train, pv_train, batch_size=512, epochs=3, val_X=None, val_pv=None)
 
     print("Evaluating FairOD...")
@@ -72,10 +72,10 @@ def run_experiment(
                               lambda_se=0.01,
                               lambda_a=18,
                               a=6, 
-                              alpha=0.3, 
-                              gamma=0.1)
+                              alpha=.3, 
+                              gamma=.25)
 
-    _, _ = model.fit(X_train, pv_train, batch_size=512, epochs=3, val_X=None, val_pv=None)
+    _, _ = model.fit(X_train, pv_train, batch_size=4096, epochs=3, val_X=None, val_pv=None)
 
     print("Evaluating fSG-OD...")
     X_pred = model.predict_scores(X_test).numpy()
