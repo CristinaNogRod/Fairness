@@ -40,18 +40,17 @@ class SGOutlierDetector():
                  lambda_se=0.9,
                  base_loss=None,
                  optimizer=None, 
-                 embedding_dim=20,
+                 embedding_dim=None,
                  ae=None, encoder=None, scorer=None
     ):
         """Constructor"""
-        #self.loss_fn = FairODLoss(base=base_loss, alpha=alpha, gamma=gamma)
         self.spl = _StatisticalParity_Loss()
         self.gfl = _GroupFidelity_Loss()
         self.alpha = alpha
         self.gamma = gamma
 
 
-        self.optimizer = None#tf.keras.optimizers.Adam() if not optimizer else optimizer
+        self.optimizer = None
         self.ae = ae
         self.encoder = encoder
         self.scorer = scorer
@@ -76,61 +75,61 @@ class SGOutlierDetector():
             tf.keras.Model
         """
         #initializer = tf.keras.initializers.Constant(value=.01)
-        initializer = tf.keras.initializers.RandomUniform()
+        initializer = tf.keras.initializers.RandomNormal()
+
+        if self.embedding_dim is None:
+            if n_inputs < 40:
+                self.embedding_dim=2
+            if 40 <= n_inputs < 100:
+                self.embedding_dim=5
+            if n_inputs >= 100:
+                self.embedding_dim=10
+        
+        if n_inputs < 40:
+            layers = [10, self.embedding_dim]
+        if 40 <= n_inputs < 100:
+            layers = [40, 20, self.embedding_dim]
+        if n_inputs >= 100:
+            layers = [40, 20, 10, self.embedding_dim]
+    
 
        # autoencoder
         inputs = tf.keras.Input(shape=(n_inputs,))
-        encoder = tf.keras.layers.Dense(40, activation='relu', name='enc_l1', kernel_initializer=initializer)(inputs)
-        encoder = tf.keras.layers.Dense(20, activation='relu', name='enc_l2', kernel_initializer=initializer)(encoder)
-        embedding = tf.keras.layers.Dense(self.embedding_dim, activation='relu', name='enc_embedding', kernel_initializer=initializer)(encoder)
+        encoder = inputs
+        for i, ln in enumerate(layers[:-1]):
+            encoder = tf.keras.layers.Dense(ln, activation='relu', name=f'enc_l{i}', kernel_initializer=initializer)(encoder) 
+        embedding = tf.keras.layers.Dense(layers[-1], activation='linear', name='enc_embedding', kernel_initializer=initializer)(encoder)
 
-        dec_inp = tf.keras.Input(shape=(self.embedding_dim,))
-        decoder = tf.keras.layers.Dense(20, activation='relu', name='dec_l1', kernel_initializer=initializer)(dec_inp)
-        decoder = tf.keras.layers.Dense(40, activation='relu', name='dec_l2', kernel_initializer=initializer)(decoder)
+        dec_inp = tf.keras.Input(shape=(layers[-1]))
+        decoder = dec_inp
+        for i, ln in enumerate(layers[:0:-1]):
+            decoder = tf.keras.layers.Dense(20, activation='relu', name=f'dec_{i}', kernel_initializer=initializer)(dec_inp)
+        
         decoder = tf.keras.layers.Dense(n_inputs, activation='linear', name='dec_out', kernel_initializer=initializer)(decoder)
 
         encoder_model = tf.keras.Model(inputs=inputs, outputs=embedding)
-        decoder_model = tf.keras.Model(inputs=dec_inp, 
-                                       outputs=decoder)
+        decoder_model = tf.keras.Model(inputs=dec_inp, outputs=decoder)
 
         outs = decoder_model(encoder_model.output)
         model = tf.keras.Model(inputs=inputs, outputs=outs)
 
-        
-        
-
         # scorer network
-        inp_scorer = tf.keras.Input(shape=(self.embedding_dim,))
+        inp_scorer = tf.keras.Input(shape=(layers[-1]))
         scorer_layer = tf.keras.layers.Dense(10, activation='linear', name='scorer_l2', kernel_initializer=initializer)(inp_scorer)
-        scorer_layer = tf.keras.layers.Dropout(.4)(scorer_layer)
+        scorer_layer = tf.keras.layers.Dropout(.2)(scorer_layer)
         scorer_layer = tf.keras.layers.Dense(1, activation='linear', name='scorer_l3', kernel_initializer=initializer)(scorer_layer)
 
         scorer_model = tf.keras.Model(inputs=inp_scorer, outputs=scorer_layer)
         
         return model, encoder_model, decoder_model, scorer_model
 
-    def fit(self, X, pv, batch_size=256, epochs=5, val_X=None, val_pv=None, stopping_after=None):
-        """
-        This function carries out the training of the networks.
-
-        Args:
-            X (np.array or pd.DataFrame): training dataset
-            pv (np.array or pd.DataFrame): protected variables of training sataset
-            batch_size (int)
-            epochs (int)
-            val_X (np.array or pd.DataFrame): validation dataset
-            val_pv (np.array or pd.DataFrame): protected variables of validation dataset
-            stopping_after (int): number of epochs during which, if the loss value continues to increase, then we stop the training
-
-        Returns:
-            2 np.arrays of length number of epochs, containing the training and validation losses.
-            If the validation datasets are not provided, then the second array is empty.
-        """
+    def fit(self, X, pv, batch_size=256, epochs=5, val_X=None, val_pv=None, early_stop=None, verbose=True):
         # If models are not provided, build them
         if self.ae is None:
             self.ae, self.encoder, self.decoder, self.scorer = self._build_models(len(X.columns))
 
-        # TODO: Added
+        self._training_finished = False
+
         if type(pv) == tuple:
             y = pv[0]
             pv = pv[1]
@@ -156,16 +155,21 @@ class SGOutlierDetector():
         # Training
         counter = 0
         for epoch in range(epochs):
-            print(f"EPOCH {epoch}\n")
+            if self._training_finished:
+                break
+
+            if verbose:
+                print(f"EPOCH {epoch}")
+
             # Reset loss avg at each epoch
             train_loss_avg = tf.keras.metrics.Mean()
 
-            # TODO: Reset after each epoch
+            # Reset used epsilon after each epoch
             self.epsilon = None
 
             # Iterate over batches
             for step, (X_batch, pv_batch) in enumerate(train_dataset):
-                loss_value = self.__training_step(X_batch, pv_batch, train_loss_avg)
+                loss_value = self.__training_step(X_batch, pv_batch, train_loss_avg, verbose=verbose)
 
             # Save the training loss
             train_loss_results[epoch] = train_loss_avg.result()
@@ -182,19 +186,20 @@ class SGOutlierDetector():
                 # Save validation loss
                 val_loss_results[epoch] = val_loss_value
 
-            # Early stopping callback:
-            # we stop the training if the loss value increses during x=stopping_after epochs
-            if stopping_after:
-                if counter > stopping_after:
-                    break
-                if loss_value > train_loss_results[epoch - 1]:
-                    counter += 1
-                else:
-                    counter = 0
+            if early_stop is not None:
+                outs = []
+                for step, (X_batch, pv_batch) in enumerate(train_dataset):
+                    scores = self.predict_scores(X_batch).numpy().tolist()
+                    outs.extend(scores)
+                
+                scores_mean = np.mean(scores)
+                if scores_mean > self.a / 2:
+                    print(f"Early stopping... (Scores mean: {scores_mean})")
+                    self._training_finished = True
 
         return train_loss_results, val_loss_results
 
-    def __training_step(self, X, pv, train_loss_avg):
+    def __training_step(self, X, pv, train_loss_avg, verbose=False):
         """
         This function carries out 1 training step in the fit method.
 
@@ -207,7 +212,6 @@ class SGOutlierDetector():
             loss value of training step
         """
         with tf.GradientTape() as tape:
-            #X_pred = self.ae(X, training=True)
             embeddings = self.encoder(X, training=True)
             X_pred = self.decoder(embeddings)
             scores = self.scorer(embeddings, training=True)
@@ -223,9 +227,6 @@ class SGOutlierDetector():
             if self.epsilon is None:
                 iepsilon = np.percentile(l2_error.numpy(), self.epsilon_p)
                 self.epsilon = iepsilon
-                #import pdb; pdb.set_trace()
-                #print(f"NORM: {tf.reduce_mean(l2_error)}")
-                print(f"Epsilon: {iepsilon}")
 
             loss_scoring = self.__scorer_loss(l2_error, scores)
 
@@ -239,29 +240,26 @@ class SGOutlierDetector():
             #self.lambda_se = 1
             loss_total =  recon_errors + self.lambda_se * tf.reduce_mean(loss_scoring)
 
-            # print("LOSS_TOTAL {} - LOSS_REC {} - LOSS_SCORING {} - EPSILON NORM {}".format(
-            #     tf.reduce_mean(loss_total).numpy(),
-            #     tf.reduce_mean(recon_errors).numpy(),
-            #     tf.reduce_mean(loss_scoring).numpy(),
-            #     tf.reduce_mean(self.epsilon).numpy()
-            # ))
+            if verbose:
+                print("  LOSS_TOTAL {} - LOSS_REC {} - LOSS_SCORING {} - EPSILON NORM {}".format(
+                    tf.reduce_mean(loss_total).numpy(),
+                    tf.reduce_mean(recon_errors).numpy(),
+                    tf.reduce_mean(loss_scoring).numpy(),
+                    tf.reduce_mean(self.epsilon).numpy(),
+                ))
 
             # Fair Extension:
-            #loss_total = self.alpha * loss_total + (1 - self.alpha) * spl_term + self.gamma * gfl_term
+            loss_total = self.alpha * loss_total + (1 - self.alpha) * spl_term + self.gamma * gfl_term
 
 
         grads = tape.gradient(loss_total, sources=self.encoder.trainable_weights + self.decoder.trainable_weights + self.scorer.trainable_weights)
-        grads = [(tf.clip_by_value(grad, -1, 1)) for grad in grads]
+        grads = [(tf.clip_by_value(grad, -.5, .5)) for grad in grads]
         self.optimizer.apply_gradients(zip(grads, self.encoder.trainable_weights + self.decoder.trainable_weights + self.scorer.trainable_weights))
         
-        # grads = tape.gradient(loss_total, sources = self.scorer.trainable_weights)
-        # grads = [(tf.clip_by_value(grad, -0.5, 0.5)) for grad in grads]
-        # self.optimizer.apply_gradients(zip(grads, self.scorer.trainable_weights))
 
         # Update and return avg loss
-        #train_loss_avg(loss_value)
         train_loss_avg(loss_total)
-        return tf.reduce_mean(loss_total)#train_loss_avg.result()
+        return tf.reduce_mean(loss_total)
 
     def __validation_step(self, X, pv, val_loss_avg):
         """
