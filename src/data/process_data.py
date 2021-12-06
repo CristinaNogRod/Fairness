@@ -1,9 +1,38 @@
 # This module holds functions for crafting the benchmarking datasets
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import PowerTransformer, MinMaxScaler, StandardScaler
+from sklearn.preprocessing import PowerTransformer, MinMaxScaler, StandardScaler, scale
 
 import argparse
+
+
+def naive_processing(data):
+    cols = {}  
+    dtypes = data.dtypes
+    cols['cat'] = dtypes[dtypes == 'object'].index.to_list()
+    cols['num'] = list(set(list(data.columns)).difference(set(cols['cat'])))
+
+    cat_num = 0
+    if len(cols['cat']) > 0:
+        x_cat = pd.get_dummies(data[cols['cat']].astype('object'))
+        xcat_cols = x_cat.columns.tolist()
+        x_cat = x_cat.values
+        cat_num = x_cat.shape[1]
+
+    num_num = 0
+    if len(cols['num']) > 0:
+        x_num = scale(data[cols['num']])
+        num_num = x_num.shape[1]
+
+    if num_num > 0 and cat_num > 0:
+        x = np.hstack((x_num, x_cat))
+    elif num_num > 0:
+        x = x_num
+    elif cat_num > 0:
+        x = x_cat
+    
+    return pd.DataFrame(x, columns=cols['num'] + xcat_cols)
+
 
 
 def craft_credit():
@@ -57,6 +86,14 @@ def craft_credit():
     credit_df_proc_subsampled = pd.concat([
         credit_df_proc_men,
         credit_df_proc_women.sample(int(len(credit_df_proc_men) * 0.25))
+    ], axis=0).sample(frac=1)
+
+    credit_df_proc_inliers = credit_df_proc_subsampled[credit_df_proc_subsampled['OUTLIER'] == 0]
+    credit_df_proc_outliers = credit_df_proc_subsampled[credit_df_proc_subsampled['OUTLIER'] == 1]
+
+    credit_df_proc_subsampled = pd.concat([
+        credit_df_proc_inliers,
+        credit_df_proc_outliers.sample(int(len(credit_df_proc_outliers) * 0.1))
     ], axis=0).sample(frac=1)
 
     # Standarize cont feats
@@ -120,17 +157,27 @@ def craft_adult():
 
 def craft_insurance():
     insurance = pd.read_csv('datasets/raw/insurance.csv')
+    
+    tgt = (insurance['charges'] > np.percentile(insurance.charges, 85)).astype(int)
+    sex = pd.get_dummies(insurance.sex)['male']
 
-    # Costs are high over the 85th percentile (i.e. about 15% are anomalies)
-    insurance['target'] = (insurance['charges'] > np.percentile(insurance.charges, 85)).astype(int)
-    insurance = insurance.drop('charges', axis=1)
-    insurance['sex'] = pd.get_dummies(insurance.sex)['male']
-    insurance['smoker'] = pd.get_dummies(insurance.smoker)['yes']
-    insurance['bmi'] = MinMaxScaler(feature_range=(-1,1)).fit_transform(insurance['bmi'].values.reshape(-1,1))
-    insurance['age'] = MinMaxScaler(feature_range=(-1,1)).fit_transform(insurance['age'].values.reshape(-1,1))
-    insurance['children'] = PowerTransformer().fit_transform(insurance['children'].values.reshape(-1,1))
-    insurance = pd.concat([insurance, pd.get_dummies(insurance.region)], axis=1)
-    insurance = insurance.drop("region", axis=1)
+    encoded_df = naive_processing(insurance.drop(['charges', 'sex'], axis=1))
+    encoded_df['target'] = tgt
+    encoded_df['sex'] = sex
+    insurance = encoded_df
+
+    # # Costs are high over the 85th percentile (i.e. about 15% are anomalies)
+    # insurance['target'] = (insurance['charges'] > np.percentile(insurance.charges, 85)).astype(int)
+    # insurance = insurance.drop('charges', axis=1)
+    # insurance['sex'] = pd.get_dummies(insurance.sex)['male']
+    # insurance['smoker'] = pd.get_dummies(insurance.smoker)['yes']
+    # # insurance['bmi'] = MinMaxScaler(feature_range=(-1,1)).fit_transform(insurance['bmi'].values.reshape(-1,1))
+    # # insurance['age'] = MinMaxScaler(feature_range=(-1,1)).fit_transform(insurance['age'].values.reshape(-1,1))
+    # insurance['bmi'] = StandardScaler().fit_transform(insurance['bmi'].values.reshape(-1,1))
+    # insurance['age'] = StandardScaler().fit_transform(insurance['age'].values.reshape(-1,1))
+    # insurance['children'] = PowerTransformer().fit_transform(insurance['children'].values.reshape(-1,1))
+    # insurance = pd.concat([insurance, pd.get_dummies(insurance.region)], axis=1)
+    # insurance = insurance.drop("region", axis=1)
 
     # Subsample women as they are the minority group
     insurance_males = insurance[insurance.sex==1]
@@ -176,7 +223,8 @@ def craft_kdd():
 
     dummy = pd.get_dummies(kdd[dummy_cols])
     cont = PowerTransformer().fit_transform(kdd[continuous_columns])
-    cont = MinMaxScaler(feature_range=(-1,1)).fit_transform(cont)
+    #cont = MinMaxScaler(feature_range=(-1,1)).fit_transform(cont)
+    cont = StandardScaler().fit_transform(cont)
 
     df_copy = kdd.copy().loc[:, continuous_columns]
     df_copy.loc[:, continuous_columns] = cont
@@ -193,29 +241,52 @@ def craft_kdd():
 
 def craft_obesity():
     dataset = pd.read_csv('datasets/raw/obesity.csv')
-    dataset_mod = dataset.copy()
+    dataset['target'] = dataset.apply(lambda r: 1 if r['NObeyesdad'] == 'Insufficient_Weight' else 0, axis=1)
+    gender = (dataset.Gender == 'Female').astype(int)
+    tgt = dataset['target']
+    dataset.drop(['NObeyesdad', 'Gender', 'target'], axis=1, inplace=True)
 
-    dataset_mod['Gender'] = dataset_mod.apply(lambda r: 1 if r['Gender'] == 'Female' else 0, axis=1)
-    dataset_mod['family_history_with_overweight'] = dataset_mod.apply(lambda r: 1 if r['family_history_with_overweight'] == 'yes' else 0, axis=1)
-    dataset_mod['SCC'] = dataset_mod.apply(lambda r: 1 if r['SCC'] == 'yes' else 0, axis=1)
-    dataset_mod['FAVC'] = dataset_mod.apply(lambda r: 1 if r['FAVC'] == 'yes' else 0, axis=1)
-    dataset_mod['SMOKE'] = dataset_mod.apply(lambda r: 1 if r['SMOKE'] == 'yes' else 0, axis=1)
-    dataset_mod['target'] = dataset_mod.apply(lambda r: 1 if r['NObeyesdad'] == 'Insufficient_Weight' else 0, axis=1)
+    dataset_mod = naive_processing(dataset)
+    dataset_mod['Gender'] = gender
+    dataset_mod['target'] = tgt
 
-    dummycols = ['CAEC', 'CALC', 'MTRANS']
-    dummies = pd.get_dummies(dataset_mod.loc[:, dummycols])
 
-    dataset_mod = dataset_mod.drop(dummycols, axis=1)
-    dataset_mod = dataset_mod.drop('NObeyesdad', axis=1)
+    # dataset_mod = dataset.copy()
 
-    dataset_mod = pd.concat([dataset_mod, dummies], axis=1)
-    scaled_cont =  MinMaxScaler(feature_range=(-1,1)).fit_transform(dataset_mod.loc[:, ['Height', 'Weight', 'CH2O', 'NCP', 'FCVC']])
+    # dataset_mod['Gender'] = dataset_mod.apply(lambda r: 1 if r['Gender'] == 'Female' else 0, axis=1)
+    # dataset_mod['family_history_with_overweight'] = dataset_mod.apply(lambda r: 1 if r['family_history_with_overweight'] == 'yes' else 0, axis=1)
+    # dataset_mod['SCC'] = dataset_mod.apply(lambda r: 1 if r['SCC'] == 'yes' else 0, axis=1)
+    # dataset_mod['FAVC'] = dataset_mod.apply(lambda r: 1 if r['FAVC'] == 'yes' else 0, axis=1)
+    # dataset_mod['SMOKE'] = dataset_mod.apply(lambda r: 1 if r['SMOKE'] == 'yes' else 0, axis=1)
+    # dataset_mod['target'] = dataset_mod.apply(lambda r: 1 if r['NObeyesdad'] == 'Insufficient_Weight' else 0, axis=1)
 
-    scaled_age = PowerTransformer().fit_transform(dataset_mod.loc[:, 'Age'].values.reshape(-1,1))
-    scaled_age = MinMaxScaler(feature_range=(-1,1)).fit_transform(scaled_age)
+    # # water liters drunk
+    # mask_3l = dataset_mod.CH2O >= 3
+    # mask_23l = (dataset_mod.CH2O > 2) & (dataset_mod.CH2O < 3)
+    # mask_12l = (dataset_mod.CH2O > 1) & (dataset_mod.CH2O <= 2)
+    # mask_1l = (dataset_mod.CH2O <= 1)
 
-    dataset_mod.loc[:, ['Height', 'Weight', 'CH2O', 'NCP', 'FCVC']] = scaled_cont
-    dataset_mod.loc[:, 'Age'] = scaled_age
+    # dataset_mod.loc[mask_3l, 'CH2O'] = '3L'
+    # dataset_mod.loc[mask_23l, 'CH2O'] = '2-3L'
+    # dataset_mod.loc[mask_12l, 'CH2O'] = '1-2L'
+    # dataset_mod.loc[mask_1l, 'CH2O'] = '0-1L'
+
+    # dataset_mod['FAF'] = dataset_mod.FAF.astype(int).astype(str) + 'l' #physical activity freq
+    # dataset_mod['TUE'] = dataset_mod.TUE.astype(int).astype(str) + 'l' # usage of tech devices
+    # dataset_mod['NCP'] = dataset_mod.NCP.astype(int).astype(str) + 'l' # caloric foods eaten
+    # dataset_mod['FCVC'] = dataset_mod.FCVC.astype(int).astype(str) + 'l' # vegetables eaten
+
+    # dummycols = ['CAEC', 'CALC', 'MTRANS', 'CH2O', 'FAF', 'TUE', 'NCP', 'FCVC']
+    # dummies = pd.get_dummies(dataset_mod.loc[:, dummycols])
+
+    # dataset_mod = dataset_mod.drop(dummycols, axis=1)
+    # dataset_mod = dataset_mod.drop('NObeyesdad', axis=1)
+
+    # dataset_mod = pd.concat([dataset_mod, dummies], axis=1)
+    # scaled_cont = PowerTransformer().fit_transform(dataset_mod.loc[:, ['Height', 'Weight', 'Age']])
+    # scaled_cont = StandardScaler().fit_transform(scaled_cont)
+
+    # dataset_mod.loc[:, ['Height', 'Weight', 'Age']] = scaled_cont
 
     # Subsample women (to about 8%)
     dataset_males = dataset_mod[dataset_mod['Gender'] == 0]
