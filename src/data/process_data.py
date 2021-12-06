@@ -239,6 +239,19 @@ def craft_kdd():
     subsampled_df = pd.concat([proc_df_males, proc_df_females], axis=0).sample(frac=1)
     subsampled_df.to_csv('datasets/proc/crafted_kdd.csv', index=False)
 
+def craft_bank():
+    dataset = pd.read_csv('datasets/raw/bank.csv', sep=';')
+
+    age = (dataset.age < 25).astype(int)
+    label = (dataset.y == 'yes').astype(int)
+
+    proc_data = naive_processing(
+        dataset.drop(['age', 'y'], axis=1)
+    )
+    proc_data['age'] = age
+    proc_data['label'] = label
+    proc_data.to_csv('datasets/proc/crafted_bank.csv', index=False)
+
 def craft_obesity():
     dataset = pd.read_csv('datasets/raw/obesity.csv')
     dataset['target'] = dataset.apply(lambda r: 1 if r['NObeyesdad'] == 'Insufficient_Weight' else 0, axis=1)
@@ -344,6 +357,7 @@ def build_synth_dataset(mu_x, mu_o, sigma_x, sigma_o, num_points=5000, percent_o
 def main(dataset):
     avail_datasets = {
         'adult': craft_adult,
+        'bank': craft_bank,
         'insurance': craft_insurance,
         'credit': craft_credit,
         'kdd': craft_kdd,
@@ -361,7 +375,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Build dataset.')
     parser.add_argument('dataset', metavar='dataset', type=str, nargs=1,
                         help='the dataset you want to build. "all" for building all of them',
-                        choices=['all', 'adult', 'credit', 'insurance', 'kdd', 'obesity'])
+                        choices=['all', 'adult', 'bank', 'credit', 'insurance', 'kdd', 'obesity'])
     args = parser.parse_args()
 
     main(args.dataset[0])
