@@ -69,9 +69,9 @@ def run_experiment(
 
     print("Training fSG-OD...")
     model = SGOutlierDetector(epsilon_p=90,#0.04, 
-                              lambda_se=0.01,
-                              lambda_a=18,
-                              a=6, 
+                              lambda_se=0.3,
+                              lambda_a=34,
+                              a=10, 
                               alpha=.5, 
                               gamma=.2)
 
