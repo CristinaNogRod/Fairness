@@ -69,14 +69,14 @@ def run_experiment(
 
     print("Training base fSG-OD...")
     model = SGOutlierDetector(
-                          epsilon=0.001, 
+                          epsilon_p=90, 
                           lambda_se=0.01, 
                           lambda_a=20,
                           a=6, 
                           alpha=0.4, 
                           gamma=0.25)
 
-    _, _ = model.fit(X_train, pv_train, batch_size=4096, epochs=6, val_X=None, val_pv=None)
+    _, _ = model.fit(X_train, pv_train, batch_size=1024, epochs=40, val_X=None, val_pv=None, early_stop=True)
 
     print("Evaluating fSG-OD...")
     X_pred = model.predict_scores(X_test).numpy()

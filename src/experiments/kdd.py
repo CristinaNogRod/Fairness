@@ -68,14 +68,14 @@ def run_experiment(
     report_metrics['metrics_fairod'] = fair_od_metrics
 
     print("Training fSG-OD...")
-    model = SGOutlierDetector(epsilon=.9,#0.04, 
+    model = SGOutlierDetector(epsilon_p=90, 
                               lambda_se=0.01,
-                              lambda_a=18,
+                              lambda_a=20,
                               a=6, 
                               alpha=.3, 
                               gamma=.25)
 
-    _, _ = model.fit(X_train, pv_train, batch_size=4096, epochs=3, val_X=None, val_pv=None)
+    _, _ = model.fit(X_train, pv_train, batch_size=1024, epochs=100, val_X=None, val_pv=None, early_stop=True)
 
     print("Evaluating fSG-OD...")
     X_pred = model.predict_scores(X_test).numpy()
