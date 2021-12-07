@@ -349,7 +349,7 @@ class SGOutlierDetector():
 
     def get_params(self, *args, **kwargs):
         return {
-            'epsilon':self.epsilon,
+            'epsilon_p':self.epsilon_p,
             'lambda_se':self.lambda_se,
             'a':self.a,
             'lambda_a':self.lambda_a,
@@ -358,16 +358,12 @@ class SGOutlierDetector():
         }
 
     def set_params(self, **params):
-        self.epsilon=params['epsilon'] if 'epsilon' in params else self.epsilon
+        self.epsilon=params['epsilon_p'] if 'epsilon_p' in params else self.epsilon_p
         self.lambda_se=params['lambda_se']
         self.a=params['a']
         self.lambda_a=params['lambda_a'],
         self.alpha=params['alpha'],
         self.alpha=params['gamma']
-        #self.loss_fn = FairODLoss(base=None, 
-        #                          alpha=params['alpha'] if 'alpha' in params else self.loss_fn.alpha, 
-        #                          gamma=params['gamma'] if 'gamma' in params else self.loss_fn.gamma
-        #)
         return self
 
     def score(self, X, y):
