@@ -197,3 +197,6 @@ $RECYCLE.BIN/
 *.csv
 *.tar.gz
 *.txt
+
+# VSCode crap
+.vscode/

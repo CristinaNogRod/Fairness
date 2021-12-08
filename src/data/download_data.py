@@ -63,7 +63,7 @@ def download_census():
 def download_obesity():
     print("Obesity dataset")
     print("\t More info: https://archive.ics.uci.edu/ml/datasets/Estimation+of+obesity+levels+based+on+eating+habits+and+physical+condition+")
-    print("Downloading the Obesity dataset to datasets/raw/kdd.csv...")
+    print("Downloading the Obesity dataset to datasets/raw/obesity.csv...")
     
     url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/00544/ObesityDataSet_raw_and_data_sinthetic%20(2).zip'
     path_out = "datasets/raw/obesity.csv"
@@ -83,12 +83,34 @@ def download_obesity():
 
     print("Done downloading Insurance dataset!\n\n")
 
-# TODO: Add rest of the dataset downloading here
+def download_bank():
+    print("Bank  Marketing dataset")
+    print("\t More info: https://archive.ics.uci.edu/ml/datasets/bank+marketing")
+    print("Downloading the Bank Marketing dataset to datasets/raw/bank.csv...")
+    
+    url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank.zip'
+    path_out = "datasets/raw/bank.csv"
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        target_path = tmpdirname + "/dataset.zip"
+
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(target_path, 'wb') as f:
+                f.write(response.raw.read())
+        
+        with zipfile.ZipFile(target_path, 'r') as zip_ref:
+            zip_ref.extractall(tmpdirname)
+        
+        shutil.move(tmpdirname + "/bank-full.csv", path_out)
+
+    print("Done downloading Bank Marketing dataset!\n\n")
 
 
 def main(dataset):
     avail_datasets = {
         'adult': download_adult,
+        'bank': download_bank,
         'insurance': download_insurance,
         'credit': download_credit,
         'kdd': download_census,
@@ -106,7 +128,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='download dataset.')
     parser.add_argument('dataset', metavar='dataset', type=str, nargs=1,
                         help='the dataset you want to download. "all" for downloading all of them',
-                        choices=['all', 'adult', 'credit', 'insurance', 'kdd', 'obesity'])
+                        choices=['all', 'adult', 'bank', 'credit', 'insurance', 'kdd', 'obesity'])
     args = parser.parse_args()
 
     main(args.dataset[0])

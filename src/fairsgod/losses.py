@@ -32,6 +32,7 @@ class FairODLoss(tf.keras.losses.Loss):
     def __call__(self, y_true, y_pred, pv):
         y_true = tf.cast(y_true, tf.float32)
         sx = self.base(y_true, y_pred)
+
         return self.alpha * tf.reduce_sum(sx) + (1 - self.alpha) * self.spl(sx, pv) + self.gamma * self.gfl(sx, pv)
 
 
