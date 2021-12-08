@@ -54,7 +54,9 @@ def run_experiment(
     _, _ = model.fit(X_train, pv_train, batch_size=512, epochs=6, val_X=None, val_pv=None)
 
     print("Evaluating FairOD...")
-    X_pred = model.predict_scores(X_test)
+    X_pred = model.predict_scores(X_test).numpy()
+    X_pred = np.nan_to_num(X_pred)  # In case FairOD predicts NaNs
+
 
     fair_od_metrics = {
         'auc': roc_auc_score(y_test, X_pred).astype(float),

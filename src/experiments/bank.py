@@ -48,6 +48,7 @@ def run_experiment(
 
     print("Evaluating FairOD...")
     X_pred = model.predict_scores(X_test)
+    X_pred = np.nan_to_num(X_pred)  # In case FairOD predicts NaNs
 
     fair_od_metrics = {
         'auc': roc_auc_score(y_test, X_pred).astype(float),
