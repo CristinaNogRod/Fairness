@@ -219,6 +219,7 @@ class SGOutlierDetector():
             recon_errors = tf.keras.losses.mse(X, X_pred)
 
             l2_error = tf.cast(
+                #InvalidArgumentError: cannot compute Sub as input #1(zero-based) was expected to be a int64 tensor but is a double tensor [Op:Sub]
                  tf.norm(X - tf.cast(X_pred, tf.float64), axis=1), 
                  tf.float32
             )
@@ -271,10 +272,10 @@ class SGOutlierDetector():
 
         recon_errors = tf.keras.losses.mse(X, X_pred)
 
-        loss_value = self.loss_fn(X, X_pred, pv)
+        #loss_value = self.loss_fn(X, X_pred, pv)
         loss_scoring = self.__scorer_loss(recon_errors, scores)
 
-        loss_value = tf.cast(loss_value, tf.float32)
+        #loss_value = tf.cast(loss_value, tf.float32)
         loss_scoring = tf.cast(loss_scoring, tf.float32)
 
         loss_total = tf.reduce_mean(loss_scoring)
