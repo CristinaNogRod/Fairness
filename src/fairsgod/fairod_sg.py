@@ -219,7 +219,6 @@ class SGOutlierDetector():
             recon_errors = tf.keras.losses.mse(X, X_pred)
 
             l2_error = tf.cast(
-                #InvalidArgumentError: cannot compute Sub as input #1(zero-based) was expected to be a int64 tensor but is a double tensor [Op:Sub]
                  tf.norm(X - tf.cast(X_pred, tf.float64), axis=1), 
                  tf.float32
             )
@@ -272,19 +271,32 @@ class SGOutlierDetector():
 
         recon_errors = tf.keras.losses.mse(X, X_pred)
 
-        #loss_value = self.loss_fn(X, X_pred, pv)
-        loss_scoring = self.__scorer_loss(recon_errors, scores)
+        l2_error = tf.cast(
+                tf.norm(X - tf.cast(X_pred, tf.float64), axis=1), 
+                tf.float32
+        )
 
-        #loss_value = tf.cast(loss_value, tf.float32)
+        if self.epsilon is None:
+            iepsilon = np.percentile(l2_error.numpy(), self.epsilon_p)
+            self.epsilon = iepsilon
+
+        loss_scoring = self.__scorer_loss(l2_error, scores)
         loss_scoring = tf.cast(loss_scoring, tf.float32)
 
-        loss_total = tf.reduce_mean(loss_scoring)
-        #loss_total = loss_value + self.lambda_se * tf.reduce_mean(loss_scoring)
+        # FairOD Terms
+        sx = scores
+        spl_term = self.spl(sx, pv)
+        gfl_term = self.gfl(sx, pv)
+
+        loss_total =  recon_errors + self.lambda_se * tf.reduce_mean(loss_scoring)
+
+        # Fair Extension:
+        loss_total = self.alpha * loss_total + (1 - self.alpha) * spl_term + self.gamma * gfl_term
 
         # Update and return avg loss
-        #train_loss_avg(loss_value)
-        val_loss_avg(loss_scoring)
-        return val_loss_avg.result()
+        val_loss_avg(loss_total)
+        return tf.reduce_mean(loss_total)
+
 
     def __scorer_loss(self, reconstruction_loss, score):
         """
