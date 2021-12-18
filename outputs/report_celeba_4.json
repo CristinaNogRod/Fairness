@@ -1,0 +1,18 @@
+{
+    "metrics_fairod": {
+        "auc": 0.24153559747976627,
+        "auc_ratio": 1.9762001982371356,
+        "ap_ratio": 1.0032434648321298,
+        "precision_ratio": 1.0,
+        "fairness": 0.012545264730420957,
+        "group_fidelity": 1.0630909204483032
+    },
+    "metrics_fsgod": {
+        "auc": 0.5772176428314232,
+        "auc_ratio": 0.8651154392181118,
+        "ap_ratio": 1.0057255971180912,
+        "precision_ratio": 1.0063651557894808,
+        "fairness": 0.5912378941053363,
+        "group_fidelity": 8.875720232026652e-05
+    }
+}
