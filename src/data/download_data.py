@@ -107,6 +107,15 @@ def download_bank():
     print("Done downloading Bank Marketing dataset!\n\n")
 
 
+def download_celeba():
+    print("Celebrity Attributes (CelebA) dataset")
+    print("\t More info: https://www.kaggle.com/jessicali9530/celeba-dataset?select=list_attr_celeba.csv")
+    print("Downloading Celeba dataset to datasets/raw/celeba.csv...")
+    celeba = pd.read_csv("TODO")#TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    celeba.to_csv('datasets/raw/celeba.csv', index=False)
+    print("Done downloading celebA dataset!\n\n")
+
+
 def main(dataset):
     avail_datasets = {
         'adult': download_adult,
@@ -115,6 +124,7 @@ def main(dataset):
         'credit': download_credit,
         'kdd': download_census,
         'obesity': download_obesity,
+        'ceelba': download_celeba,
     }
 
     if dataset == 'all':
@@ -128,7 +138,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='download dataset.')
     parser.add_argument('dataset', metavar='dataset', type=str, nargs=1,
                         help='the dataset you want to download. "all" for downloading all of them',
-                        choices=['all', 'adult', 'bank', 'credit', 'insurance', 'kdd', 'obesity'])
+                        choices=['all', 'adult', 'bank', 'credit', 'insurance', 'kdd', 'obesity', 'celeba'])
     args = parser.parse_args()
 
     main(args.dataset[0])

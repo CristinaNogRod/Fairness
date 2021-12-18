@@ -309,6 +309,24 @@ def craft_obesity():
     dataset_resampled.to_csv('datasets/proc/crafted_obesity.csv', index=False)
 
 
+def craft_celeba():
+    dataset = pd.read_csv('datasets/raw/celeba.csv')
+    dataset.drop(columns='image_id', inplace=True)
+
+    # Change flags:  -1 -> 0
+    for c in dataset.columns: dataset.loc[dataset[c] == -1, c] = 0
+
+    # Subsample men (to 10%)
+    males = dataset[dataset['Male'] == 1].sample(frac=.1)
+    females = dataset[dataset.Male == 0]
+    dataset_subsampled = pd.concat([males, females]).sample(frac=1)
+
+    # Subsample attractive people (outliers) to about 5%
+    not_attractive = dataset_subsampled[dataset_subsampled.Attractive == 0].sample(frac=.05)
+    attractive = dataset_subsampled[dataset_subsampled.Attractive == 1]
+    dataset_subsampled = pd.concat([attractive, not_attractive]).sample(frac=1)
+
+    dataset_subsampled.to_csv('datasets/proc/crafted_celeba.csv', index=False)
 
 
 def build_synth_dataset(mu_x, mu_o, sigma_x, sigma_o, num_points=5000, percent_outliers=.01, p=1/5):
@@ -361,7 +379,8 @@ def main(dataset):
         'insurance': craft_insurance,
         'credit': craft_credit,
         'kdd': craft_kdd,
-        'obesity': craft_obesity
+        'obesity': craft_obesity,
+        'celeba': craft_celeba
     }
 
     if dataset == 'all':
@@ -375,7 +394,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Build dataset.')
     parser.add_argument('dataset', metavar='dataset', type=str, nargs=1,
                         help='the dataset you want to build. "all" for building all of them',
-                        choices=['all', 'adult', 'bank', 'credit', 'insurance', 'kdd', 'obesity'])
+                        choices=['all', 'adult', 'bank', 'credit', 'insurance', 'kdd', 'obesity', 'celeba'])
     args = parser.parse_args()
 
     main(args.dataset[0])

@@ -36,9 +36,9 @@ def run_experiment(
     # Here we'll save the metrics report
     report_metrics = dict()
 
-    # Load adult dataset
+    # Load celebA dataset
     celeba_df = pd.read_csv(dataset_path)
-    #celeba_df.astype('int64').dtypes
+    celeba_df = celeba_df.astype(np.float64)
     y_pv = celeba_df[['Male','Attractive']]
     X = celeba_df.drop(columns=['Male','Attractive'])
 
