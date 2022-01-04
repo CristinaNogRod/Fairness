@@ -99,7 +99,7 @@ def run_experiment(
     report_table = tabulate([
         ['AUC', report_metrics['metrics_fairod']['auc'], report_metrics['metrics_fsgod']['auc']],
         ['AUC Ratio', report_metrics['metrics_fairod']['auc_ratio'], report_metrics['metrics_fsgod']['auc_ratio']],
-        ['AP', report_metrics['metrics_fairod']['auc'], report_metrics['metrics_fsgod']['auc']],
+        ['AP', report_metrics['metrics_fairod']['ap'], report_metrics['metrics_fsgod']['ap']],
         ['AP Ratio', report_metrics['metrics_fairod']['ap_ratio'], report_metrics['metrics_fsgod']['ap_ratio']],
         ['Precision Ratio', report_metrics['metrics_fairod']['precision_ratio'], report_metrics['metrics_fsgod']['precision_ratio']],
         ['Fairness', report_metrics['metrics_fairod']['fairness'], report_metrics['metrics_fsgod']['fairness']],
