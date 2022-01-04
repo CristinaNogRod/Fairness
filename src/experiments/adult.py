@@ -19,7 +19,7 @@ from fairsgod.fairod_sg import SGOutlierDetector
 from fairsgod import evaluation
 
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, average_precision_score
 
 from skopt import BayesSearchCV
 from skopt.space import Real, Categorical, Integer
@@ -61,6 +61,7 @@ def run_experiment(
     fair_od_metrics = {
         'auc': roc_auc_score(y_test, X_pred).astype(float),
         'auc_ratio': evaluation.auc_ratio(y_test, X_pred, pv_test).astype(float),
+        'ap': average_precision_score(y_test, X_pred).astype(float),
         'ap_ratio': evaluation.compute_AP_ratio(y_test, X_pred, pv_test).astype(float),
         'precision_ratio': evaluation.compute_precision_ratio(y_test, X_pred, pv_test).astype(float),
         'fairness': evaluation.compute_Fairness_metric(y_test, X_pred, pv_test).numpy().astype(float),
@@ -86,6 +87,7 @@ def run_experiment(
     fsg_od_metrics = {
         'auc': roc_auc_score(y_test, X_pred).astype(float),
         'auc_ratio': evaluation.auc_ratio(y_test, X_pred, pv_test).astype(float),
+        'ap': average_precision_score(y_test, X_pred).astype(float),
         'ap_ratio': evaluation.compute_AP_ratio(y_test, X_pred, pv_test).astype(float),
         'precision_ratio': evaluation.compute_precision_ratio(y_test, X_pred, pv_test).astype(float),
         'fairness': evaluation.compute_Fairness_metric(y_test, X_pred, pv_test).numpy().astype(float),
@@ -96,6 +98,7 @@ def run_experiment(
     report_table = tabulate([
         ['AUC', report_metrics['metrics_fairod']['auc'], report_metrics['metrics_fsgod']['auc']],
         ['AUC Ratio', report_metrics['metrics_fairod']['auc_ratio'], report_metrics['metrics_fsgod']['auc_ratio']],
+        ['AP', report_metrics['metrics_fairod']['auc'], report_metrics['metrics_fsgod']['auc']],
         ['AP Ratio', report_metrics['metrics_fairod']['ap_ratio'], report_metrics['metrics_fsgod']['ap_ratio']],
         ['Precision Ratio', report_metrics['metrics_fairod']['precision_ratio'], report_metrics['metrics_fsgod']['precision_ratio']],
         ['Fairness', report_metrics['metrics_fairod']['fairness'], report_metrics['metrics_fsgod']['fairness']],
