@@ -8,6 +8,7 @@ import argparse
 
 def naive_processing(data):
     cols = {}  
+    xcat_cols = []
     dtypes = data.dtypes
     cols['cat'] = dtypes[dtypes == 'object'].index.to_list()
     cols['num'] = list(set(list(data.columns)).difference(set(cols['cat'])))
@@ -56,9 +57,9 @@ def craft_credit():
     credit_df.loc[:, bill_colnames] = np.maximum(0, credit_df[bill_colnames]) 
 
     # TODO: Remove high cardinality columns
-    high_car_cols = ['PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6']
-    credit_df.drop(high_car_cols, axis=1, inplace=True)
-    dis_features = ['SEX', 'OUTLIER', 'MARRIAGE', 'EDUCATION']
+    #high_car_cols = ['PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6']
+    #credit_df.drop(high_car_cols, axis=1, inplace=True)
+    #dis_features = ['SEX', 'OUTLIER', 'MARRIAGE', 'EDUCATION']
 
     # TODO: Remove 0 entries so the norm. distribution is not bimodal
     for c in [f'PAY_AMT{i}' for i in range(1, 7)]:
@@ -66,22 +67,23 @@ def craft_credit():
     for c in [f'BILL_AMT{i}' for i in range(1, 7)]:
         credit_df.loc[credit_df[c] <= 0, c] = credit_df[c].median()
 
-    #dis_features = ['SEX', 'OUTLIER', 'MARRIAGE', 'EDUCATION', 'PAY_0','PAY_2','PAY_3','PAY_4','PAY_5','PAY_6']
+    dis_features = ['SEX', 'OUTLIER', 'MARRIAGE', 'EDUCATION', 'PAY_0','PAY_2','PAY_3','PAY_4','PAY_5','PAY_6']
 
     one_hot_features = [var for var in dis_features if not(var in ['OUTLIER', 'SEX'])]
     cts_features = [var for var in credit_df.columns if not(var in dis_features)]
 
 
-    dummy = pd.get_dummies(credit_df[one_hot_features].astype(str))
-    cts = credit_df.loc[:, cts_features]
+    #dummy = pd.get_dummies(credit_df[one_hot_features].astype(str))
+    #cts = credit_df.loc[:, cts_features]
 
-    credit_df_proc = pd.concat((cts,dummy), axis=1)
+    #credit_df_proc = pd.concat((cts,dummy), axis=1)
+    credit_df_proc = credit_df
     credit_df_proc['OUTLIER'] = credit_df['OUTLIER']
     credit_df_proc['SEX'] = credit_df['SEX'] - 1
 
 
-    credit_df_proc_men = credit_df_proc[credit_df_proc['SEX'] == 0]
-    credit_df_proc_women = credit_df_proc[credit_df_proc['SEX'] == 1]
+    credit_df_proc_men = credit_df_proc[credit_df_proc['SEX'] == 1]
+    credit_df_proc_women = credit_df_proc[credit_df_proc['SEX'] == 0]
 
     credit_df_proc_subsampled = pd.concat([
         credit_df_proc_men,
@@ -94,13 +96,21 @@ def craft_credit():
     credit_df_proc_subsampled = pd.concat([
         credit_df_proc_inliers,
         credit_df_proc_outliers.sample(int(len(credit_df_proc_outliers) * 0.1))
-    ], axis=0).sample(frac=1)
+    ], axis=0).sample(frac=1).reset_index(drop=True)
 
     # Standarize cont feats
-    normalized_cont = credit_df_proc_subsampled[cts_features]
-    normalized_cont = PowerTransformer().fit_transform(normalized_cont)
-    normalized_cont = StandardScaler().fit_transform(normalized_cont)
-    credit_df_proc_subsampled.loc[:, cts_features] = normalized_cont
+    #normalized_cont = credit_df_proc_subsampled[cts_features]
+    #normalized_cont = PowerTransformer().fit_transform(normalized_cont)
+    #normalized_cont = StandardScaler().fit_transform(normalized_cont)
+    #credit_df_proc_subsampled.loc[:, cts_features] = normalized_cont
+    pv = credit_df_proc_subsampled['SEX'].reset_index(drop=True)
+    tgt = credit_df_proc_subsampled['OUTLIER'].reset_index(drop=True)
+
+    credit_df_proc_subsampled = naive_processing(credit_df_proc_subsampled.drop(['SEX', 'OUTLIER'], axis=1))
+    credit_df_proc_subsampled['SEX'] = pv.astype(int)
+    credit_df_proc_subsampled['OUTLIER'] = tgt.astype(int)
+
+    # import pdb; pdb.set_trace()
 
     # save as csv
     credit_df_proc_subsampled.to_csv('datasets/proc/crafted_credit.csv', index=False)
