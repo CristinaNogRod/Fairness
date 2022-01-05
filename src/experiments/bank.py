@@ -63,11 +63,11 @@ def run_experiment(
     report_metrics['metrics_fairod'] = fair_od_metrics
 
     print("Training fSG-OD...")
-    model = SGOutlierDetector(epsilon_p=95,
+    model = SGOutlierDetector(epsilon_p=80,
                               lambda_se=0.01,
                               lambda_a=20,
                               a=6, 
-                              alpha=.3, 
+                              alpha=.5, 
                               gamma=.25)
 
     _, _ = model.fit(X_train, pv_train, batch_size=1024, epochs=25, val_X=None, val_pv=None, verbose=False, early_stop=True)
@@ -86,7 +86,7 @@ def run_experiment(
     }
     report_metrics['metrics_fsgod'] = fsg_od_metrics
 
-   report_table = tabulate([
+    report_table = tabulate([
         ['AUC', report_metrics['metrics_fairod']['auc'], report_metrics['metrics_fsgod']['auc']],
         ['AUC Ratio', report_metrics['metrics_fairod']['auc_ratio'], report_metrics['metrics_fsgod']['auc_ratio']],
         ['AP', report_metrics['metrics_fairod']['ap'], report_metrics['metrics_fsgod']['ap']],

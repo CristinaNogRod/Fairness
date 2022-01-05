@@ -95,7 +95,7 @@ def craft_credit():
 
     credit_df_proc_subsampled = pd.concat([
         credit_df_proc_inliers,
-        credit_df_proc_outliers.sample(int(len(credit_df_proc_outliers) * 0.1))
+        credit_df_proc_outliers.sample(int(len(credit_df_proc_outliers) * 0.8))
     ], axis=0).sample(frac=1).reset_index(drop=True)
 
     # Standarize cont feats
@@ -244,9 +244,15 @@ def craft_kdd():
     proc_df = pd.concat([df_copy, dummy], axis=1)
     
     proc_df_males = proc_df.loc[proc_df['ASEX']==0, :]
-    proc_df_females = proc_df.loc[proc_df['ASEX']==1, :].sample(frac=.1)
+    proc_df_females = proc_df.loc[proc_df['ASEX']==1, :].sample(frac=.3)
 
     subsampled_df = pd.concat([proc_df_males, proc_df_females], axis=0).sample(frac=1)
+
+    # ~20 percent anomalies
+    inliers = subsampled_df.loc[subsampled_df.target == 0].sample(frac=.2)
+    outliers = subsampled_df.loc[subsampled_df.target == 1]
+    subsampled_df = pd.concat([inliers, outliers], axis=0).sample(frac=1)
+
     subsampled_df.to_csv('datasets/proc/crafted_kdd.csv', index=False)
 
 def craft_bank():
@@ -260,7 +266,13 @@ def craft_bank():
     )
     proc_data['age'] = age
     proc_data['label'] = label
-    proc_data.to_csv('datasets/proc/crafted_bank.csv', index=False)
+
+    # ~ 20% outliers
+    inliers = proc_data.loc[proc_data['label'] == 0].sample(frac=.5)
+    outliers = proc_data.loc[proc_data['label'] == 1]
+    dataset_subsampled = pd.concat([inliers, outliers]).sample(frac=1)
+
+    dataset_subsampled.to_csv('datasets/proc/crafted_bank.csv', index=False)
 
 def craft_obesity():
     dataset = pd.read_csv('datasets/raw/obesity.csv')
@@ -273,43 +285,6 @@ def craft_obesity():
     dataset_mod['Gender'] = gender
     dataset_mod['target'] = tgt
 
-
-    # dataset_mod = dataset.copy()
-
-    # dataset_mod['Gender'] = dataset_mod.apply(lambda r: 1 if r['Gender'] == 'Female' else 0, axis=1)
-    # dataset_mod['family_history_with_overweight'] = dataset_mod.apply(lambda r: 1 if r['family_history_with_overweight'] == 'yes' else 0, axis=1)
-    # dataset_mod['SCC'] = dataset_mod.apply(lambda r: 1 if r['SCC'] == 'yes' else 0, axis=1)
-    # dataset_mod['FAVC'] = dataset_mod.apply(lambda r: 1 if r['FAVC'] == 'yes' else 0, axis=1)
-    # dataset_mod['SMOKE'] = dataset_mod.apply(lambda r: 1 if r['SMOKE'] == 'yes' else 0, axis=1)
-    # dataset_mod['target'] = dataset_mod.apply(lambda r: 1 if r['NObeyesdad'] == 'Insufficient_Weight' else 0, axis=1)
-
-    # # water liters drunk
-    # mask_3l = dataset_mod.CH2O >= 3
-    # mask_23l = (dataset_mod.CH2O > 2) & (dataset_mod.CH2O < 3)
-    # mask_12l = (dataset_mod.CH2O > 1) & (dataset_mod.CH2O <= 2)
-    # mask_1l = (dataset_mod.CH2O <= 1)
-
-    # dataset_mod.loc[mask_3l, 'CH2O'] = '3L'
-    # dataset_mod.loc[mask_23l, 'CH2O'] = '2-3L'
-    # dataset_mod.loc[mask_12l, 'CH2O'] = '1-2L'
-    # dataset_mod.loc[mask_1l, 'CH2O'] = '0-1L'
-
-    # dataset_mod['FAF'] = dataset_mod.FAF.astype(int).astype(str) + 'l' #physical activity freq
-    # dataset_mod['TUE'] = dataset_mod.TUE.astype(int).astype(str) + 'l' # usage of tech devices
-    # dataset_mod['NCP'] = dataset_mod.NCP.astype(int).astype(str) + 'l' # caloric foods eaten
-    # dataset_mod['FCVC'] = dataset_mod.FCVC.astype(int).astype(str) + 'l' # vegetables eaten
-
-    # dummycols = ['CAEC', 'CALC', 'MTRANS', 'CH2O', 'FAF', 'TUE', 'NCP', 'FCVC']
-    # dummies = pd.get_dummies(dataset_mod.loc[:, dummycols])
-
-    # dataset_mod = dataset_mod.drop(dummycols, axis=1)
-    # dataset_mod = dataset_mod.drop('NObeyesdad', axis=1)
-
-    # dataset_mod = pd.concat([dataset_mod, dummies], axis=1)
-    # scaled_cont = PowerTransformer().fit_transform(dataset_mod.loc[:, ['Height', 'Weight', 'Age']])
-    # scaled_cont = StandardScaler().fit_transform(scaled_cont)
-
-    # dataset_mod.loc[:, ['Height', 'Weight', 'Age']] = scaled_cont
 
     # Subsample women (to about 8%)
     dataset_males = dataset_mod[dataset_mod['Gender'] == 0]
@@ -331,8 +306,8 @@ def craft_celeba():
     females = dataset[dataset.Male == 0]
     dataset_subsampled = pd.concat([males, females]).sample(frac=1)
 
-    # Subsample attractive people (outliers) to about 5%
-    not_attractive = dataset_subsampled[dataset_subsampled.Attractive == 0].sample(frac=.05)
+    # Subsample attractive people (outliers) to about 15%
+    not_attractive = dataset_subsampled[dataset_subsampled.Attractive == 0].sample(frac=.10)
     attractive = dataset_subsampled[dataset_subsampled.Attractive == 1]
     dataset_subsampled = pd.concat([attractive, not_attractive]).sample(frac=1)
 

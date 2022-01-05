@@ -69,7 +69,7 @@ def run_experiment(
     report_metrics['metrics_fairod'] = fair_od_metrics
 
     print("Training fSG-OD...")
-    model = SGOutlierDetector(epsilon_p=90, 
+    model = SGOutlierDetector(epsilon_p=85, 
                               lambda_se=0.01,
                               lambda_a=20,
                               a=6, 
